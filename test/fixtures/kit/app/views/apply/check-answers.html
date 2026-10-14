@@ -1,0 +1,9 @@
+{% extends "layouts/main.html" %}
+{% block content %}
+<h1>Check your answers</h1>
+{{ govukSummaryList({ rows: [{ key: { text: "Name" }, value: { text: data.name }, actions: { items: [{ href: "name", text: "Change", visuallyHiddenText: "name" }] } }] }) }}
+<!-- <a href="old-page">An old link in a comment</a> -->
+<a href="check-answers?preview=true">Preview</a>
+<a href="address">Add an address</a>
+<form method="post"></form>
+{% endblock %}

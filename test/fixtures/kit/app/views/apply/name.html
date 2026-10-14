@@ -1,0 +1,17 @@
+{% extends "layouts/main.html" %}
+{% block pageTitle %}What is your name? – Apply{% endblock %}
+{% block content %}
+{{ govukBackLink({ text: "Back", href: "start" }) }}
+<form method="post">
+  {{ govukInput({ label: { text: "What is your name?", isPageHeading: true }, name: "name", id: "name" }) }}
+  {{ govukRadios({
+    name: "contact",
+    fieldset: { legend: { text: "How should we contact you?" } },
+    items: [
+      { value: "email", text: "Email", hint: { text: "We'll send updates" } },
+      { value: "post", text: "Post" }
+    ]
+  }) }}
+  {{ govukButton({ text: "Continue" }) }}
+</form>
+{% endblock %}

@@ -1,0 +1,6 @@
+{% extends "layouts/main.html" %}
+{% block content %}
+<h1>Find your address</h1>
+<form method="post" action="lookup-router"></form>
+{% if data['show-manual'] == 'yes' %}<a href="manual-address">Enter it manually</a>{% else %}<a href="help-with-address">Get help</a>{% endif %}
+{% endblock %}

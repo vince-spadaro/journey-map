@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__ – Journey map</title>
+<style>/*__CSS__*/</style>
+</head>
+<body>
+<header class="bar">
+  <div class="bar__title">
+    <h1 id="journey-name"></h1>
+    <p id="journey-meta"></p>
+  </div>
+  <div class="bar__controls">
+    <input id="search" type="search" placeholder="Find a page" autocomplete="off" aria-label="Find a page">
+    <div class="seg" role="group" aria-label="Direction">
+      <button type="button" data-dir="DOWN">Top to bottom</button>
+      <button type="button" data-dir="RIGHT">Left to right</button>
+    </div>
+    <label class="check" hidden><input type="checkbox" id="show-thumbs"> Screenshots</label>
+    <label class="check"><input type="checkbox" id="show-return"> Change and return links</label>
+    <label class="check"><input type="checkbox" id="show-outside" checked> Pages outside this journey</label>
+    <div class="export">
+      <button type="button" id="share-btn" class="btn btn--share" aria-expanded="false" aria-haspopup="true">Share <span id="share-count" class="count" hidden></span></button>
+      <div class="export__menu share__menu" id="share-menu" hidden>
+        <button type="button" data-share="download"><strong>Download map with notes</strong><span>A copy of this map with your notes inside, to send to someone</span></button>
+        <button type="button" data-share="copy"><strong>Copy notes as text</strong><span>To paste into Jira, Confluence, Teams or an email</span></button>
+        <button type="button" data-share="all"><strong id="share-all-label">See all notes</strong><span>Every note, in journey order</span></button>
+        <p class="share__hint">In a call, share this browser window. Notes save in this browser as you type.</p>
+      </div>
+    </div>
+    <div class="export">
+      <button type="button" id="export-btn" class="btn" aria-expanded="false" aria-haspopup="true">Export</button>
+      <div class="export__menu" id="export-menu" hidden>
+        <button type="button" data-export="png">PNG image</button>
+        <button type="button" data-export="svg">SVG (for Figma or Miro)</button>
+        <button type="button" data-export="print">Print or save as PDF</button>
+      </div>
+    </div>
+  </div>
+</header>
+<main class="stage">
+  <div id="canvas" class="canvas">
+    <svg id="map" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Journey map">
+      <style>/*__SVG_CSS__*/</style>
+      <defs>
+        <marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#505a5f"/></marker>
+        <marker id="arrow-link" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#1d70b8"/></marker>
+        <marker id="arrow-return" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#912b88"/></marker>
+      </defs>
+      <g id="viewport">
+        <g id="edges"></g>
+        <g id="return-edges"></g>
+        <g id="labels"></g>
+        <g id="nodes"></g>
+      </g>
+    </svg>
+  </div>
+  <aside id="panel" class="panel" hidden aria-live="polite"></aside>
+  <div class="zoom" role="group" aria-label="Zoom">
+    <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+    <span id="zoom-level">100%</span>
+    <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+    <button type="button" id="zoom-fit">Fit</button>
+  </div>
+  <details class="legend" id="legend" open>
+    <summary>Key</summary>
+    <div class="legend__row"><svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#505a5f" stroke-width="2"/></svg>Continue button or redirect</div>
+    <div class="legend__row"><svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#1d70b8" stroke-width="1.5"/></svg>Link</div>
+    <div class="legend__row"><svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#912b88" stroke-width="1.5" stroke-dasharray="5 3"/></svg>Change or return link</div>
+    <div class="legend__row"><span class="legend__chip legend__chip--condition">condition</span>Branch rule from the routes</div>
+    <div class="legend__row"><span class="legend__chip legend__chip--decision"></span>Decision made in code</div>
+    <div class="legend__row"><span class="legend__chip legend__chip--outside"></span>Outside this journey</div>
+    <p class="legend__hint">Drag or scroll to move · ⌘/Ctrl + scroll to zoom</p>
+  </details>
+</main>
+<div id="screen" class="screen" hidden role="dialog" aria-modal="true" aria-labelledby="screen-title">
+  <div class="screen__box">
+    <div class="screen__head">
+      <div class="screen__titles">
+        <h2 id="screen-title"></h2>
+        <p id="screen-meta"></p>
+      </div>
+      <div class="screen__actions">
+        <div class="seg" role="group" aria-label="Screenshot size">
+          <button type="button" data-screen-zoom="fit">Fit</button>
+          <button type="button" data-screen-zoom="1">100%</button>
+          <button type="button" data-screen-zoom="1.5">150%</button>
+          <button type="button" data-screen-zoom="2">200%</button>
+        </div>
+        <button type="button" id="screen-prev" class="btn" aria-label="Previous screen">← Previous</button>
+        <button type="button" id="screen-next" class="btn" aria-label="Next screen">Next →</button>
+        <a id="screen-open" class="btn" target="_blank" rel="noopener">Open in prototype ↗</a>
+        <button type="button" id="screen-close" class="btn" aria-label="Close">Close</button>
+      </div>
+    </div>
+    <div class="screen__states" id="screen-states" role="group" aria-label="Page states" hidden></div>
+    <div class="screen__main">
+      <div class="screen__body" id="screen-body"><img id="screen-img" alt=""></div>
+      <div class="screen__notes" id="screen-notes"></div>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="journey-notes">{}</script>
+<script type="application/json" id="journey-data">__DATA__</script>
+<script>/*__JS__*/</script>
+</body>
+</html>

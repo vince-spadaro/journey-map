@@ -1,0 +1,23 @@
+{% extends "layouts/main.html" %}
+{% block content %}
+<a href="javascript:window.history.back()" class="govuk-back-link">Back</a>
+<form method="post" action="where-do-you-live">
+  <fieldset class="govuk-fieldset">
+    <legend class="govuk-fieldset__legend"><h1>Where do you live?</h1></legend>
+    <div class="govuk-radios" data-module="govuk-radios">
+      <div class="govuk-radios__item">
+        <input class="govuk-radios__input" id="where-1" name="where-do-you-live" type="radio" value="england">
+        <label class="govuk-label govuk-radios__label" for="where-1">England</label>
+      </div>
+      <div class="govuk-radios__item">
+        <input class="govuk-radios__input" id="where-2" name="where-do-you-live" type="radio" value="abroad">
+        <label class="govuk-label govuk-radios__label" for="where-2">Outside the UK</label>
+      </div>
+      <div class="govuk-radios__item">
+        <input class="govuk-radios__input" id="where-3" name="where-do-you-live" type="radio" value="scotland">
+        <label class="govuk-label govuk-radios__label" for="where-3">Scotland</label>
+      </div>
+    </div>
+  </fieldset>
+</form>
+{% endblock %}

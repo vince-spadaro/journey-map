@@ -1,0 +1,26 @@
+{
+  "name": "journey-map",
+  "version": "0.1.0",
+  "description": "Draws a GOV.UK Prototype Kit journey as a map of pages and branches, for design reviews",
+  "bin": {
+    "journey-map": "bin/journey-map.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "viewer"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18.3"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "acorn": "^8.19.0",
+    "acorn-walk": "^8.3.5",
+    "elkjs": "^0.12.0",
+    "puppeteer-core": "^24.43.1"
+  }
+}
