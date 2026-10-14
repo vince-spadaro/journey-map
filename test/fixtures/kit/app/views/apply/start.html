@@ -4,4 +4,5 @@
 <h1 class="govuk-heading-xl">Apply for a thing</h1>
 {{ govukButton({ text: "Start now", href: "name", isStartButton: true }) }}
 <a href="https://www.gov.uk/help">Help</a>
+{% if data['returning'] == 'yes' %}<a href="name">Carry on</a>{% else %}<a href="name">Begin</a>{% endif %}
 {% endblock %}

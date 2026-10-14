@@ -9,7 +9,7 @@ The map shows:
 - every page in the journey, with a screenshot, its title and file name
 - the Continue buttons, links and redirects between pages
 - the branch rules from the routes, in the words the user sees: a rule like `where-do-you-live = 'england'` shows as “England”, the label of that radio on the page (the rule itself is still in the side panel)
-- decisions made in code with no page of their own, such as an address lookup router
+- where a route sends the user when it has no page of its own (like an address lookup), drawn as a branch straight from the page before it
 - the error messages each page can show
 - Change links and links back to earlier pages (hidden until you switch them on), labelled with the link's words, including the hidden text screen readers hear: "Change contact name" rather than just "Change"
 
@@ -117,7 +117,9 @@ journey-map
 
 ### Screenshots
 
-The tool starts its own copy of the prototype on a spare port, opens each page in Chrome or Edge, then stops the prototype again. This takes about a minute. It doesn't affect a copy of the prototype you already have running.
+The tool starts its own copy of the prototype on a spare port, opens each page in Chrome or Edge, then stops the prototype again. It doesn't affect a copy of the prototype you already have running.
+
+This takes a minute or two, longer for journeys with lots of error messages. Pages are opened one at a time on purpose: the Prototype Kit can lose a page's answers when two pages save at the same moment, which would give wrong screenshots. The tool also removes the session files it creates in the prototype's `.tmp/sessions` folder when it finishes, so they don't pile up and slow the prototype down.
 
 The prototype's packages need to be installed: run `npm install` in the prototype folder once after cloning it.
 
@@ -157,7 +159,7 @@ journey-map app/views/version-2/apply/find-your-address.html
 
 ### Naming branches
 
-Branches are named from the form labels where possible. Rules that aren't about a form answer, like `tooLong` or `result.type = 'no-results'`, have no label to borrow, and a branch the routes reach with "otherwise" is shown as **Any other answer** (or **Any other result** after a decision in code). The side panel lists what it rules out.
+Branches are named from the form labels where possible. Rules that aren't about a form answer, like `tooLong` or `result.type = 'no-results'`, have no label to borrow, and a branch the routes reach with "otherwise" is shown as **Any other answer** (or **Any other result** when the route works it out, like an address lookup). The side panel lists what it rules out.
 
 To give these clearer names, run:
 

@@ -17,7 +17,7 @@ Use these words consistently in the map, the terminal and the README:
 
 - **state**: another version of a screen. The page as it opens counts as a state, so a page with one extra state shows "2 states". No tag when a page has only its normal state. Extra states are conditional reveals (an option selected), links back to the same page with a query string (for example `?requestedNew=true`), and answers: when a page's template changes with an answer on the page before it (`conditionFields` in `views.js`, `answerStates` in `graph.js`), that page before it branches once per answer and the page is photographed after each answer (`?field=value`, in a private session).
 - **error**: an error screen. Tag shows from "1 error". Never "error state".
-- Branches are named in the words the user sees: radio, checkbox and select labels from the page that sends the form, for example “I want to use a different address”. Never show "otherwise": name the options left over, or use "Any other answer" (after a page) or "Any other result" (after a decision in code), and list what it excludes in the side panel. The rule from the routes is kept as `code` and shown in small text as "Route rule:".
+- Branches are named in the words the user sees: radio, checkbox and select labels from the page that sends the form, for example “I want to use a different address”. Never show "otherwise": name the options left over, or use "Any other answer" (after a page) or "Any other result" (when a route works it out, `decided` edges), and list what it excludes in the side panel. The rule from the routes is kept as `code` and shown in small text as "Route rule:".
 - Return links (Change links and links back to earlier pages) are labelled with the link's full words, including visually hidden text: "Change contact name", not "Change".
 
 Write all text for designers in plain English, following the GOV.UK style: short sentences, sentence case, no jargon. Explain what something does for the designer, not how the code works.
@@ -30,6 +30,7 @@ Write all text for designers in plain English, following the GOV.UK style: short
    - `lib/prototype.js`: finds the prototype root (`app/views` + `package.json`), lists pages and route files, resolves URLs. Page URLs are normalised by `normaliseUrl()`: leading slash, no trailing slash, no `.html`, no `/index`.
    - `lib/views.js` `parsePage()`: title, links, forms and form choices (`fields`) from a template, with regular expressions (templates mix HTML and Nunjucks too freely for a strict parser). Handles plain HTML and GOV.UK macros, `{% if %}` conditions, and visually hidden text (`fullText`).
    - `lib/routes.js` `parseRoutes()`: reads route files with acorn and works out each `res.redirect` / `res.render` and the conditions around it (`if`/`else`, early returns, `switch`, ternaries, `&&`), following constants, template strings, helper functions and variables copied from `req.session.data`.
+   - A route with no page of its own (a form's address that redirects, or a link to an address that redirects) isn't drawn: the page is joined straight to where the route sends it (`decided` edges). Don't bring back "decision" blocks; designers found them confusing.
    - Edges have a `kind`: `submit`, `redirect`, `link` or `change`. Change links and links that loop back are marked `return: true` and kept out of the layout.
 2. `lib/names.js` `nameBranches()` turns each edge's `rule` into a `label`. It runs again after screenshots, when labels the template builds from data are known (`renderedFields`). `--create-names` writes the names file for rules still shown as code.
 3. `lib/screenshots.js` (unless `--no-screenshots`): starts its own copy of the prototype on a spare port (`NODE_ENV=development`, `USE_HTTPS=false`, `USE_AUTH=false`) or uses `--url`, then takes screenshots with puppeteer-core and the Chrome or Edge already installed. Screenshots are 2× WebP (thumbnails 2× JPEG). Details, accordions and tabs are opened before every screenshot. Error attempts run in a separate private browser context so they don't change the session used for other screenshots.
@@ -54,6 +55,13 @@ The README's Install section is the source of truth; keep it, `install.sh`, `ins
 - After installing, a new terminal is needed if the PATH line was added.
 - Screenshots need Chrome or Edge (or `--browser <path>`), and `npm install` run in the prototype.
 - Colleagues use the tool but don't change it. Don't suggest they push changes; suggest they tell the owner.
+
+## Things learned the hard way
+
+- **Screenshots must be taken one page at a time (`CONCURRENCY = 1` in `screenshots.js`).** The Kit's session file store reads every file in `.tmp/sessions` each time a session is saved and deletes any it can't read. Pages saving at the same time (and a page's own CSS and JavaScript requests) then lose answers, giving wrong error screenshots. Three at a time was tried and gave wrong results.
+- **Clean up sessions.** Each private browser context makes a session file. The tool notes the files that exist before a run and removes only new ones afterwards (not with `--url`, where the sessions may be the user's own). Hundreds of leftover files make every page save slow, which makes the problem above much worse, for the tool and for the designer's own `npm run dev`.
+- **Set the answers that lead to a page before trying its errors** (`answersLeadingTo`), so the route treats the form as it would for a real user. Otherwise a shared route can show another page's error.
+- **Everything must be generic.** Prototypes differ: plain HTML and macros, routes in `app/routes.js` or `_routes.js`, a fixed `base` or one worked out from `__dirname`, helpers that render errors or pick the next page. When a journey reveals a new pattern, handle the pattern, add it to `test/fixtures/kit` with a test, and check the other journeys still map the same.
 
 ## Working on the code
 

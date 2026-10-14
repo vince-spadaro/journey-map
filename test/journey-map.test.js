@@ -34,7 +34,8 @@ test('uses the browser title, or the heading when there is none', () => {
 test('follows links and macro buttons, but not back links, external links or comments', () => {
   const graph = buildGraph({ root, scopeDir })
   assert.strictEqual(edge(graph, 'start', 'name').kind, 'link')
-  assert.deepStrictEqual(edge(graph, 'start', 'name').texts, ['Start now'])
+  assert.deepStrictEqual(edge(graph, 'start', 'name').texts.sort(), ['Begin', 'Carry on', 'Start now'])
+  assert.strictEqual(graph.edges.filter(e => short(e.from) === 'start' && short(e.to) === 'name').length, 1, 'the same link in an if and its else is one line')
   assert.ok(!edge(graph, 'name', 'start'), 'back link is ignored')
   assert.ok(!graph.nodes.some(n => n.id.includes('old-page')), 'commented-out link is ignored')
   assert.ok(!graph.nodes.some(n => n.id.includes('should-not-appear')), 'layouts are not pages')
@@ -80,13 +81,12 @@ test('turns a re-render with errors into an error state, not a branch', () => {
   assert.strictEqual(onward.label, '', 'a link with no condition has no name')
 })
 
-test('shows a route with no page as a decision, with a ternary redirect', () => {
+test('joins a page straight to where a route with no page sends it', () => {
   const graph = buildGraph({ root, scopeDir })
-  const decision = node(graph, 'lookup-router')
-  assert.strictEqual(decision.type, 'decision')
-  assert.strictEqual(edge(graph, 'address', 'lookup-router').kind, 'submit')
-  assert.strictEqual(edge(graph, 'lookup-router', 'choose-address').label, 'found')
-  const rest = edge(graph, 'lookup-router', 'no-address')
+  assert.ok(!node(graph, 'lookup-router'), 'no block for the route itself')
+  assert.strictEqual(edge(graph, 'address', 'choose-address').kind, 'submit')
+  assert.strictEqual(edge(graph, 'address', 'choose-address').label, 'found')
+  const rest = edge(graph, 'address', 'no-address')
   assert.strictEqual(rest.label, 'Any other result', '"otherwise" after a decision in code')
   assert.deepStrictEqual(rest.excludes, ['found'])
 })
@@ -124,6 +124,20 @@ test('a page that changes with an earlier answer branches once for each answer',
   const into = graph.edges.filter(e => short(e.from) === 'name' && short(e.to) === 'where-do-you-live')
   assert.deepStrictEqual(into.map(e => e.label), ['“Email”', '“Post”'])
   assert.deepStrictEqual(node(graph, 'where-do-you-live').answerStates.options.map(o => o.value), ['email', 'post'])
+})
+
+test('knows the answers that lead to a page, for trying its errors', () => {
+  const { answersLeadingTo } = require('../lib/screenshots')
+  const graph = buildGraph({ root, scopeDir })
+  assert.deepStrictEqual(answersLeadingTo(graph, node(graph, 'check-answers')), { 'where-do-you-live': 'england' })
+  // Two ways in with different answers: neither is set
+  assert.deepStrictEqual(answersLeadingTo(graph, node(graph, 'where-do-you-live')), {})
+})
+
+test('a link back up the journey is the return link, not the button that leads on', () => {
+  const graph = buildGraph({ root, scopeDir })
+  assert.strictEqual(edge(graph, 'check-answers', 'done').return, false, 'the button stays on the main flow')
+  assert.strictEqual(edge(graph, 'done', 'check-answers').return, true, 'Cancel is drawn as a return link')
 })
 
 test('picks the start page and marks pages nothing links to', () => {
@@ -194,14 +208,14 @@ test('names rules and branches from the names file', () => {
   const graph = buildGraph({ root, scopeDir })
   const todo = unnamed(graph)
   assert.deepStrictEqual(todo.rules.sort(), ['found', 'not name'])
-  assert.deepStrictEqual(todo.branches, ['lookup-router → no-address'])
+  assert.deepStrictEqual(todo.branches, ['address → no-address'])
   nameBranches(graph, {
     rules: { found: 'Addresses found' },
-    branches: { 'lookup-router → no-address': 'No addresses found' }
+    branches: { 'address → no-address': 'No addresses found' }
   })
-  assert.strictEqual(edge(graph, 'lookup-router', 'choose-address').label, 'Addresses found')
-  assert.strictEqual(edge(graph, 'lookup-router', 'choose-address').code, 'found')
-  assert.strictEqual(edge(graph, 'lookup-router', 'no-address').label, 'No addresses found')
+  assert.strictEqual(edge(graph, 'address', 'choose-address').label, 'Addresses found')
+  assert.strictEqual(edge(graph, 'address', 'choose-address').code, 'found')
+  assert.strictEqual(edge(graph, 'address', 'no-address').label, 'No addresses found')
   assert.deepStrictEqual(unnamed(graph).branches, [])
 })
 
@@ -244,6 +258,18 @@ test('follows what a helper function is given, like the page to show errors on',
     ['render', '/help/search', 'has errors', true],
     ['redirect', '/help/results', 'otherwise', false]
   ])
+})
+
+test('reads a base address worked out from the folder', () => {
+  const routes = parseRoutes(`
+    var path = require('path')
+    module.exports = function (router) {
+      var base = '/' + __dirname.split(path.sep + 'views' + path.sep).pop().split(path.sep).join('/')
+      router.post(base + '/start', (req, res) => res.redirect(base + '/next'))
+    }
+  `, '/somewhere/my-prototype/app/views/epic/version-1-0/journey/_routes.js')
+  assert.strictEqual(routes[0].path, '/epic/version-1-0/journey/start')
+  assert.strictEqual(routes[0].targets[0].url, '/epic/version-1-0/journey/next')
 })
 
 test('makes conditions readable', () => {
