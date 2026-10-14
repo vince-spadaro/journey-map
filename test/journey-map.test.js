@@ -76,8 +76,8 @@ test('turns a re-render with errors into an error state, not a branch', () => {
   assert.strictEqual(name.errorStates.length, 1)
   assert.strictEqual(name.errorStates[0].when, 'not name', 'a text input has no options to name')
   assert.deepStrictEqual(name.errorStates[0].messages, ['Enter your name'])
-  const onward = edge(graph, 'name', 'where-do-you-live')
-  assert.strictEqual(onward.label, '', 'a lone "otherwise" is dropped')
+  const onward = edge(graph, 'start', 'name')
+  assert.strictEqual(onward.label, '', 'a link with no condition has no name')
 })
 
 test('shows a route with no page as a decision, with a ternary redirect', () => {
@@ -119,6 +119,13 @@ test('treats Change links as return links and keeps self-links as variants', () 
   assert.strictEqual(edge(graph, 'check-answers', 'done').kind, 'submit')
 })
 
+test('a page that changes with an earlier answer branches once for each answer', () => {
+  const graph = buildGraph({ root, scopeDir })
+  const into = graph.edges.filter(e => short(e.from) === 'name' && short(e.to) === 'where-do-you-live')
+  assert.deepStrictEqual(into.map(e => e.label), ['“Email”', '“Post”'])
+  assert.deepStrictEqual(node(graph, 'where-do-you-live').answerStates.options.map(o => o.value), ['email', 'post'])
+})
+
 test('picks the start page and marks pages nothing links to', () => {
   const graph = buildGraph({ root, scopeDir })
   assert.strictEqual(graph.meta.mainEntry, '/apply/start')
@@ -144,6 +151,15 @@ test('lays out and renders a self-contained HTML file', async () => {
   assert.ok(!html.includes('/*__JS__*/') && !html.includes('__DATA__'))
   const json = html.match(/<script type="application\/json" id="journey-data">([\s\S]*?)<\/script>/)[1]
   assert.strictEqual(JSON.parse(json).nodes.length, graph.nodes.length)
+})
+
+test('shows the whole file name, wrapped at hyphens when it is long', async () => {
+  const graph = buildGraph({ root, scopeDir })
+  const page = node(graph, 'where-do-you-live')
+  page.fileName = 'what-is-the-full-name-of-the-person-we-should-contact.html'
+  await addLayouts(graph)
+  assert.deepStrictEqual(page.fileLines, ['what-is-the-full-name-of-the-', 'person-we-should-contact.html'])
+  assert.ok(page.height > node(graph, 'start').height - 30, 'the card grows to fit')
 })
 
 test('keeps route constants in their own scope', () => {
@@ -204,6 +220,30 @@ test('friendly labels keep rules they cannot name', () => {
   assert.strictEqual(friendlyLabel("colour = 'blue'", fields), "colour = 'blue'")
   assert.strictEqual(friendlyLabel('not colour', fields), 'no answer to “What colour?”')
   assert.strictEqual(friendlyLabel("tooLong and colour = 'red'", fields), 'tooLong and “Red”')
+})
+
+test('follows what a helper function is given, like the page to show errors on', () => {
+  const routes = parseRoutes(`
+    module.exports = function (router) {
+      var base = '/help'
+      function renderWithErrors (res, page, errors) {
+        res.render(base + '/' + page, { errors: errors })
+      }
+      router.post(base + '/search', function (req, res) {
+        var errors = {}
+        if (!req.session.data.q) errors.q = 'Enter something'
+        if (Object.keys(errors).length) {
+          return renderWithErrors(res, 'search', errors)
+        }
+        res.redirect(base + '/results')
+      })
+    }
+  `, 'routes.js')
+  const targets = routes[0].targets.map(t => [t.kind, t.url, labelFor(t.conds), !!t.errors])
+  assert.deepStrictEqual(targets, [
+    ['render', '/help/search', 'has errors', true],
+    ['redirect', '/help/results', 'otherwise', false]
+  ])
 })
 
 test('makes conditions readable', () => {

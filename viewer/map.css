@@ -4,7 +4,7 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 .node { cursor: pointer; }
 .node .card { fill: #fff; stroke: #b1b4b6; stroke-width: 1.5; }
 .node .title { font-size: 15px; font-weight: 600; fill: #0b0c0c; }
-.node .file { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; fill: #505a5f; }
+.node .file { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; fill: #505a5f; }
 .node .kind { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; }
 .node-page.is-entry .card { stroke: #00703c; stroke-width: 2.5; }
 

@@ -15,7 +15,7 @@ The people using it are designers, not developers. The owner maintains the code;
 
 Use these words consistently in the map, the terminal and the README:
 
-- **state**: another version of a screen. The page as it opens counts as a state, so a page with one extra state shows "2 states". No tag when a page has only its normal state. Extra states are conditional reveals (an option selected) and links back to the same page with a query string (for example `?requestedNew=true`).
+- **state**: another version of a screen. The page as it opens counts as a state, so a page with one extra state shows "2 states". No tag when a page has only its normal state. Extra states are conditional reveals (an option selected), links back to the same page with a query string (for example `?requestedNew=true`), and answers: when a page's template changes with an answer on the page before it (`conditionFields` in `views.js`, `answerStates` in `graph.js`), that page before it branches once per answer and the page is photographed after each answer (`?field=value`, in a private session).
 - **error**: an error screen. Tag shows from "1 error". Never "error state".
 - Branches are named in the words the user sees: radio, checkbox and select labels from the page that sends the form, for example “I want to use a different address”. Never show "otherwise": name the options left over, or use "Any other answer" (after a page) or "Any other result" (after a decision in code), and list what it excludes in the side panel. The rule from the routes is kept as `code` and shown in small text as "Route rule:".
 - Return links (Change links and links back to earlier pages) are labelled with the link's full words, including visually hidden text: "Change contact name", not "Change".

@@ -271,11 +271,13 @@
       if (shift) drawThumb(n, g, box)
       n.lines.forEach((line, i) => make('text', { class: 'title', x: 14, y: shift + 30 + i * 19 }, g, line))
       const top = shift + 16 + n.lines.length * 19 + 4
-      make('text', { class: 'file', x: 14, y: top + 12 }, g, n.fileLabel)
+      // The whole file name, one line or more (sizes match lib/layout.js)
+      n.fileLines.forEach((line, i) => make('text', { class: 'file', x: 14, y: top + 11 + i * 13 }, g, line))
+      const badgeTop = top + 3 + Math.max(1, n.fileLines.length) * 13 + 6
       let x = 14
       n.badges.forEach(badge => {
-        make('rect', { class: 'badge badge-' + badge.kind, x, y: top + 22, width: badge.width, height: 20, rx: 10 }, g)
-        make('text', { class: 'badge-text badge-text-' + badge.kind, x: x + badge.width / 2, y: top + 36, 'text-anchor': 'middle' }, g, badge.text)
+        make('rect', { class: 'badge badge-' + badge.kind, x, y: badgeTop, width: badge.width, height: 20, rx: 10 }, g)
+        make('text', { class: 'badge-text badge-text-' + badge.kind, x: x + badge.width / 2, y: badgeTop + 14, 'text-anchor': 'middle' }, g, badge.text)
         x += badge.width + 6
       })
       drawNoteFlag(g, n, box)
@@ -341,12 +343,16 @@
         h('p', { class: 'panel__states-group' }, 'States'),
         h('ul', null,
           h('li', null,
-            h('button', { class: 'linkish', type: 'button', onclick: () => openScreen(n.id, 0) }, 'As it opens'),
-            h('span', { class: 'panel__how' }, 'When the page is first opened')
+            h('button', { class: 'linkish', type: 'button', onclick: () => openScreen(n.id, 0) },
+              n.sameAsAnswer ? 'As it opens, and after “' + n.sameAsAnswer + '”' : 'As it opens'),
+            h('span', { class: 'panel__how' }, 'When the page is first opened' + (n.sameAsAnswer ? ', or after choosing “' + n.sameAsAnswer + '”' : ''))
           ),
           others.map(({ st, index }) => h('li', null,
             h('button', { class: 'linkish', type: 'button', onclick: () => openScreen(n.id, index) }, stateLabel(st)),
-            h('span', { class: 'panel__how' }, st.kind === 'variant' ? 'After the link “' + st.label + '” (' + st.query + ')' : 'When this option is chosen')
+            h('span', { class: 'panel__how' },
+              st.kind === 'variant' ? 'After the link “' + st.label + '” (' + st.query + ')'
+                : st.kind === 'answer' ? 'After choosing “' + st.label + '”' + (st.question ? ' for “' + st.question + '”' : '')
+                  : 'When this option is chosen')
           ))
         )
       ] : null,
@@ -718,7 +724,7 @@
 
   // How a state is named in tabs and lists
   function stateLabel (st) {
-    if (st.kind === 'variant') return 'After “' + st.label + '”'
+    if (st.kind === 'variant' || st.kind === 'answer') return 'After “' + st.label + '”'
     if (st.kind === 'error') {
       return 'Error: ' + st.messages[0] + (st.messages.length > 1 ? ' (+' + (st.messages.length - 1) + ' more)' : '')
     }
@@ -729,7 +735,7 @@
   function openScreen (id, stateIndex) {
     const n = nodesById.get(id)
     if (!n || !n.shot) return
-    const states = [{ label: 'As it opens', shot: n.shot, shotWidth: n.shotWidth, shotHeight: n.shotHeight, cutOff: n.cutOff }]
+    const states = [{ label: n.sameAsAnswer ? 'As it opens, and after “' + n.sameAsAnswer + '”' : 'As it opens', shot: n.shot, shotWidth: n.shotWidth, shotHeight: n.shotHeight, cutOff: n.cutOff }]
       .concat(n.states.map(st => ({ ...st, how: st.label, label: stateLabel(st) })))
     const current = Math.min(stateIndex || 0, states.length - 1)
     const view = states[current]
