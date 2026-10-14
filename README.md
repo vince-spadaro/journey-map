@@ -20,19 +20,83 @@ You need:
 - Node.js 18.3 or later. You already have it if you can run the Prototype Kit.
 - Google Chrome or Microsoft Edge, for the screenshots.
 
-```
-npm install -g git+https://github.com/YOUR-ORG/journey-map.git
-```
+The installer sets everything up, including on work laptops where you don't have admin rights. It doesn't need any changes to your prototypes.
 
-Run the same command again to update.
+### On a Mac
 
-To install from a copy on your computer instead:
+Open Terminal and run:
 
 ```
-cd journey-map
+curl -fsSL https://raw.githubusercontent.com/vince-spadaro/journey-map/main/install.sh | bash
+```
+
+This downloads journey-map to a `journey-map` folder in your home folder and installs it. When it says **Done**, close Terminal, open it again, and check:
+
+```
+journey-map --help
+```
+
+If you've already downloaded journey-map with GitHub Desktop, run the installer from its folder instead (in GitHub Desktop: **Repository › Open in Terminal**):
+
+```
+bash install.sh
+```
+
+### On Windows
+
+Download journey-map with GitHub Desktop (**File › Clone repository…**, then paste `https://github.com/vince-spadaro/journey-map.git` in the **URL** tab), then open its folder and double-click `install.cmd`. When it says **Done**, open a new Command Prompt and check:
+
+```
+journey-map --help
+```
+
+### Updating
+
+Run the installer again: the same `curl` line or `bash install.sh` on a Mac, or `install.cmd` on Windows. If you use GitHub Desktop, select **Fetch origin** and **Pull origin** first.
+
+Maps you made before updating keep the old version. Run the tool again on a journey to get the latest features.
+
+### What the installer does
+
+1. Checks you have Node.js 18.3 or later.
+2. Downloads journey-map, or gets the latest version if you already have it.
+3. Installs the packages it needs.
+4. If npm isn't allowed to install command-line tools in its usual place (common on work laptops), sets npm to use a `.npm-global` folder in your home folder instead. No admin rights needed.
+5. Creates the `journey-map` command, and makes sure new terminals can find it by adding one line to your terminal's settings file (`.zshrc`, or `.bash_profile` for bash) if it isn't there already.
+6. Checks for Chrome or Edge.
+
+It's safe to run more than once.
+
+### If something goes wrong
+
+The installer says what went wrong and what to do. The most common problems:
+
+- **npm install fails on a work network**: your organisation may need its own npm registry or a proxy. Ask IT or a developer on your team for the setting.
+- **The `curl` line can't download journey-map**: download it with GitHub Desktop instead, then run `bash install.sh` from its folder.
+- **"Couldn't find Chrome or Edge"**: give the browser's location when you map a journey, with `--browser "<path to Chrome>"`.
+- **No screenshots, and the prototype didn't start**: run `npm install` in the prototype folder first.
+
+<details>
+<summary>Installing by hand</summary>
+
+In the `journey-map` folder:
+
+```
 npm install
 npm link
 ```
+
+If `npm link` says you don't have permission:
+
+```
+mkdir -p ~/.npm-global
+npm config set prefix ~/.npm-global
+echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+npm link
+```
+
+</details>
 
 ## Use
 
