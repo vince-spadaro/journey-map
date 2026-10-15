@@ -143,7 +143,10 @@ test('a link back up the journey is the return link, not the button that leads o
 test('picks the start page and marks pages nothing links to', () => {
   const graph = buildGraph({ root, scopeDir })
   assert.strictEqual(graph.meta.mainEntry, '/apply/start')
-  assert.ok(node(graph, 'orphan').entry)
+  assert.ok(node(graph, 'start').entry)
+  // The orphan page has no links in or out, so it isn't a start
+  assert.ok(!node(graph, 'orphan').entry)
+  assert.match(node(graph, 'orphan').notes[0], /Not connected to any other page/)
 })
 
 test('--start narrows the map to what is reachable from that page', () => {

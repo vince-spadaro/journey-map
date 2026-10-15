@@ -223,7 +223,7 @@ To share names with your team, keep the file somewhere you all use, like a share
   - **Download map with notes** saves a copy of the map with your notes inside. Send that file: whoever opens it sees the notes and can add their own.
   - **Copy notes as text** copies every note, in journey order, to paste into Jira, Confluence, Teams or an email.
   - **See all notes** lists every note in the side panel.
-- **Export** saves the map as a PNG, as an SVG you can paste into Figma or Miro, or as a PDF through Print.
+- **Export** saves the map as a PNG, as an SVG for Mural, or as a PDF through Print.
 
 ## Reviewing in a call
 

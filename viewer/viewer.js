@@ -485,10 +485,11 @@
       n.notes.map(text => h('p', { class: 'panel__note' }, text)),
       section('Goes to', out.map(e => edgeItem(e, e.to)), n.type === 'page' ? 'Nothing – this is the end of the journey.' : ''),
       section('Comes from', into.map(e => edgeItem(e, e.from)), n.type === 'page' && !n.entry ? 'No page links here.' : ''),
-      section(n.states.some(st => st.kind === 'error') ? 'Error rules in the routes' : 'Errors', n.errorStates.map(state => h('li', { class: 'panel__error' },
-        state.messages.length ? state.messages.map(m => h('strong', { style: 'display:block' }, m)) : h('strong', null, 'Shows an error'),
-        state.when ? h('span', { class: 'panel__how' }, conditionText(state.when)) : null,
-        codeNote(state.code)
+      // The errors the routes can show, only when they weren't photographed:
+      // photographed errors are already in the states box above
+      section('Errors', (n.states.some(st => st.kind === 'error') ? [] : n.errorStates).map(state => h('li', { class: 'panel__error' },
+        state.messages.length ? state.messages.map(m => h('strong', { style: 'display:block' }, m)) : h('strong', null, 'Shows an error message'),
+        h('span', { class: 'panel__how' }, hasShots ? 'Not photographed: the tool couldn’t make this error appear' : 'Run the tool with screenshots to see this error')
       ))),
       // Photographed versions are in the states box; without screenshots, list the links
       section('Other versions of this page', (n.states.some(st => st.kind === 'variant') ? [] : n.variants).map(v => h('li', null,
