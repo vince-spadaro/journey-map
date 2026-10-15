@@ -204,6 +204,7 @@ To share names with your team, keep the file somewhere you all use, like a share
 
 ## Using the map
 
+- **When it was made**: the top of the map shows the date and time the map was made, and the browser tab (and any bookmark of it) shows the date. Downloaded and exported files are named with it too, like `apply-journey-map-2026-10-15-1606.html`, so saved copies sort in the order they were made.
 - **Drag** or **scroll** to move around. Hold **⌘** (Mac) or **Ctrl** and scroll to zoom. Press **F** to fit the whole map.
 - **Click a page** to see its screenshot, the external websites it links to (under "Links to N external websites"), where it goes and under which conditions, where it comes from, its error messages, and links to open it in the prototype or in VS Code. The path that leads to it is highlighted.
 - **Full screen** (on the screenshot in the side panel) shows the whole page at a readable size. Use **←** and **→** to step through every screen in journey order, for content reviews. **Fit / 100% / 150% / 200%** (or **+** and **−**) zoom in to read small text.

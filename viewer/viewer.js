@@ -77,14 +77,26 @@
 
   function plural (n, word, many) { return n + ' ' + (n === 1 ? word : many || word + 's') }
 
+  // When the map was made, in the reader's own time. Maps made before this was
+  // added don't have it.
+  const createdAt = data.meta.createdAt ? new Date(data.meta.createdAt) : null
+  const madeOn = () => createdAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  const madeAt = () => madeOn() + ', ' + createdAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  // For file names, so saved copies sort in the order they were made
+  const pad = n => String(n).padStart(2, '0')
+  const madeStamp = () => createdAt
+    ? createdAt.getFullYear() + '-' + pad(createdAt.getMonth() + 1) + '-' + pad(createdAt.getDate()) + '-' + pad(createdAt.getHours()) + pad(createdAt.getMinutes())
+    : new Date().toISOString().slice(0, 10)
+
   function fillHeader () {
     const s = data.meta.stats
     $('#journey-name').textContent = data.meta.name
-    document.title = data.meta.name + ' – Journey map'
+    document.title = data.meta.name + ' – Journey map' + (createdAt ? ' – ' + madeOn() : '')
     const parts = [plural(s.pages, 'page'), plural(s.branches, 'branch', 'branches')]
     if (s.decisions) parts.push(plural(s.decisions, 'decision'))
     parts.push(data.meta.scope)
     if (data.meta.start) parts.push('from ' + data.meta.start.split('/').pop())
+    if (createdAt) parts.push('made ' + madeAt())
     $('#journey-meta').textContent = parts.join(' · ')
   }
 
@@ -1002,7 +1014,9 @@
 
   function notesAsText () {
     const noted = notedPages()
-    const lines = [data.meta.name + ' – review notes', new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), '']
+    const lines = [data.meta.name + ' – review notes', new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })]
+    if (createdAt) lines.push('Map made ' + madeAt())
+    lines.push('')
     noted.forEach(n => {
       lines.push((pages.indexOf(n) + 1) + '. ' + n.title + ' (' + (n.fileName || n.url) + ')')
       noteText(n.id).trim().split('\n').forEach(line => lines.push(line.trim() ? '   ' + line.trim() : ''))
@@ -1034,8 +1048,7 @@
       /(<script type="application\/json" id="journey-notes">)[\s\S]*?(<\/script>)/,
       (match, open, close) => open + json + close
     )
-    const date = new Date().toISOString().slice(0, 10)
-    download(new Blob([html], { type: 'text/html' }), data.meta.slug + '-journey-map-' + date + '.html')
+    download(new Blob([html], { type: 'text/html' }), fileName('html'))
   }
 
   function showAllNotes () {
@@ -1129,7 +1142,7 @@
   })
 
   function fileName (ext) {
-    return data.meta.slug + '-journey-map.' + ext
+    return data.meta.slug + '-journey-map-' + madeStamp() + '.' + ext
   }
 
   function contentBox () {
