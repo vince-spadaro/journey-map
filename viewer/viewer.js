@@ -572,6 +572,31 @@
     applyView()
   }
 
+  // Brings the given pages into view: zoomed out just enough to show them all,
+  // and no bigger than full size
+  function showPages (ids) {
+    const layout = currentLayout()
+    const hideOutside = svg.classList.contains('hide-outside')
+    const boxes = ids
+      .filter(id => !(hideOutside && nodesById.get(id).outside))
+      .map(id => layout.nodes[id])
+      .filter(Boolean)
+    if (!boxes.length) return
+    const rect = canvas.getBoundingClientRect()
+    const pad = 60
+    const x1 = Math.min(...boxes.map(b => b.x))
+    const y1 = Math.min(...boxes.map(b => b.y))
+    const x2 = Math.max(...boxes.map(b => b.x + b.width))
+    const y2 = Math.max(...boxes.map(b => b.y + b.height))
+    const k = clamp(Math.min((visibleWidth() - pad * 2) / (x2 - x1), (rect.height - pad * 2) / (y2 - y1)), 0.1, 1)
+    state.view = {
+      k,
+      x: visibleWidth() / 2 - ((x1 + x2) / 2) * k,
+      y: rect.height / 2 - ((y1 + y2) / 2) * k
+    }
+    applyView()
+  }
+
   // Opens on the start of the journey at a readable size, or the whole map if it fits
   function initialView () {
     const box = viewport.getBBox()
@@ -846,6 +871,7 @@
   showOutside.addEventListener('change', applyOutside)
 
   const search = $('#search')
+  let searchTimer = null
   search.addEventListener('input', () => {
     const q = search.value.trim().toLowerCase()
     state.matches = q
@@ -853,6 +879,9 @@
       : []
     state.matchIndex = -1
     applyHighlights()
+    // Once typing pauses, bring every matching page into view
+    clearTimeout(searchTimer)
+    if (state.matches.length) searchTimer = setTimeout(() => showPages(state.matches), 350)
   })
   search.addEventListener('keydown', event => {
     if (event.key !== 'Enter' || !state.matches.length) return
@@ -1175,6 +1204,18 @@
   const legend = $('#legend')
   if (store.get('legend') === 'closed') legend.open = false
   legend.addEventListener('toggle', () => store.set('legend', legend.open ? 'open' : 'closed'))
+  // The key only explains what's on this map
+  const flows = e => e.kind === 'submit' || e.kind === 'redirect'
+  const onMap = {
+    flow: data.edges.some(e => flows(e) && !e.return),
+    link: data.edges.some(e => e.kind === 'link' && !e.return),
+    return: data.edges.some(e => e.return),
+    branch: data.edges.some(e => flows(e) && e.label),
+    decision: data.nodes.some(n => n.type === 'decision'),
+    outside: data.nodes.some(n => n.type === 'exit'),
+    missing: data.nodes.some(n => n.type === 'missing')
+  }
+  legend.querySelectorAll('[data-show]').forEach(row => { row.hidden = !onMap[row.dataset.show] })
 
   updateShareButton()
   fillHeader()

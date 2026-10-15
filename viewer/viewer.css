@@ -118,6 +118,7 @@ input[type="search"] {
 .legend summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 .legend[open] summary { margin-bottom: 6px; }
 .legend__row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.legend__row[hidden] { display: none; }
 .legend__row > svg, .legend__chip { flex: 0 0 auto; width: 28px; }
 .legend__chip { height: 14px; border-radius: 4px; border: 1.5px solid; }
 .legend__chip--condition { width: auto; height: auto; padding: 0 5px; font-size: 11px; border-color: var(--orange); background: #fff; border-radius: 4px; }

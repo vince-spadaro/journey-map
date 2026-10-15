@@ -24,7 +24,7 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 .node:focus { outline: none; }
 .node:focus-visible .card { stroke: #0b0c0c; stroke-width: 3; }
 .node.is-selected .card { stroke: #1d70b8; stroke-width: 3; }
-.node.is-match .card { stroke: #0b0c0c; stroke-width: 3; }
+.node.is-match .card { stroke: #0b0c0c; stroke-width: 3; fill: #fff7bf; }
 
 .thumb-frame { fill: none; stroke: #d8dadb; stroke-width: 1; }
 .thumb-empty { fill: #f3f2f1; }

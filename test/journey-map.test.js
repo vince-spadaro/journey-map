@@ -149,6 +149,15 @@ test('picks the start page and marks pages nothing links to', () => {
   assert.match(node(graph, 'orphan').notes[0], /Not connected to any other page/)
 })
 
+test('starts a journey that loops back to its first page from the first page the index lists', () => {
+  const loop = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'loop') })
+  const find = name => loop.edges.find(e => e.from === '/loop/' + name[0] && e.to === '/loop/' + name[1])
+  assert.strictEqual(loop.meta.mainEntry, '/loop/home')
+  assert.ok(loop.nodes.find(n => n.id === '/loop/home').entry)
+  assert.strictEqual(find(['home', 'question']).return, false, 'the link into the journey stays on the main flow')
+  assert.strictEqual(find(['done', 'home']).return, true, 'the link back home is a return link')
+})
+
 test('--start narrows the map to what is reachable from that page', () => {
   const graph = buildGraph({ root, scopeDir, start: 'address' })
   const names = graph.nodes.map(n => short(n.id)).sort()
