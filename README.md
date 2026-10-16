@@ -207,7 +207,7 @@ To share names with your team, keep the file somewhere you all use, like a share
 - **When it was made**: the top of the map shows the date and time the map was made, and the browser tab (and any bookmark of it) shows the date. Downloaded and exported files are named with it too, like `apply-journey-map-2026-10-15-1606.html`, so saved copies sort in the order they were made.
 - **Drag** or **scroll** to move around. Hold **⌘** (Mac) or **Ctrl** and scroll to zoom. Press **F** to fit the whole map.
 - **Click a page** to see its screenshot, the external websites it links to (under "Links to N external websites"), where it goes and under which conditions, where it comes from, its error messages, and links to open it in the prototype or in VS Code. The path that leads to it is highlighted.
-- **Full screen** (on the screenshot in the side panel) shows the whole page at a readable size. Use **←** and **→** to step through every screen in journey order, for content reviews. **Fit / 100% / 150% / 200%** (or **+** and **−**) zoom in to read small text.
+- **Full screen** (on the screenshot in the side panel) shows the whole page at a readable size. Use **←** and **→** to step through every screen in journey order, for content reviews. **Fit / 100% / 150% / 200%** (or **+** and **−**) zoom in to read small text. **Open in VS Code** opens the page's template, to fix what you've spotted.
 - Screenshots are taken at retina (2×) quality. Zoom in on the map and the cards switch to the sharp full-size screenshots.
 - **Screen states**: every page can have more than one screenshot. Switch between them with the tabs in the full-screen view, or with **↑** and **↓**. The side panel lists them all.
   - **States** (shown as an "N states" tag, counting the page as it opens, so a page with one other state shows "2 states"; a page with only its normal state has no tag):
@@ -219,7 +219,7 @@ To share names with your team, keep the file somewhere you all use, like a share
 - **Find a page** searches titles, headings, URLs and file names. Press Enter to jump between matches, or **/** to start searching.
 - **Top to bottom / Left to right** changes the direction of the map.
 - **Change and return links** shows the links that go back to earlier pages.
-- **Notes**: every screen has a Notes box, in the side panel and next to the screenshot in full screen. Type while you review; notes save in your browser as you type, and a yellow marker shows on each screen that has notes. They stay if you close the tab, and come back when you regenerate the map of the same journey.
+- **Notes**: every screen has a Notes box, in the side panel and next to the screenshot in full screen. Type while you review; notes save in your browser as you type, and a yellow marker shows on each screen that has notes. Drag the box's bottom corner to make it bigger or smaller; it stays that size. When a screen has more than one state or error, each one has its own notes: pick a state's tab in full screen to write about it. States with notes are tagged **Notes**. They stay if you close the tab. Each map keeps its own notes: when you make a new map of the same journey it starts with no notes, and the older map keeps the notes typed in it.
 - **Share**:
   - **Download map with notes** saves a copy of the map with your notes inside. Send that file: whoever opens it sees the notes and can add their own.
   - **Copy notes as text** copies every note, in journey order, to paste into Jira, Confluence, Teams or an email.
