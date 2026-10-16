@@ -152,7 +152,8 @@ input[type="search"] {
 }
 .screen__titles { flex: 1 1 260px; min-width: 0; }
 .screen__head h2 { font-size: 17px; margin: 0; }
-.screen__head p { font-size: 13px; color: var(--muted); margin: 2px 0 0; overflow-wrap: anywhere; }
+/* One line, so the header doesn't jump as you move between states */
+.screen__head p { font-size: 13px; color: var(--muted); margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .screen__actions { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .screen__actions .btn { text-decoration: none; color: var(--text); font-size: 14px; }
 .screen__actions .btn:disabled { opacity: .4; cursor: default; }
@@ -160,13 +161,14 @@ input[type="search"] {
 .screen__states[hidden] { display: none; }
 .screen__state { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 13.5px; max-width: 100%; text-align: left; }
 .screen__state:hover { background: #f3f2f1; }
-.screen__state[aria-pressed="true"] { background: #4c2c68; border-color: #4c2c68; color: #fff; }
+/* The tab you're on takes the colours of the "states" and "errors" tags on the map */
+.screen__state[aria-pressed="true"] { background: #e6dcf0; border-color: #4c2c68; color: #4c2c68; }
 .panel__states { background: #f4eff8; border-left: 4px solid #4c2c68; padding: 8px 10px; margin: 0 0 12px; }
 .panel__states p { margin: 0 0 4px; }
 .panel__states-group { margin: 8px 0 2px !important; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #4c2c68; }
 .panel__states-group--error { color: var(--red); }
 .screen__state--error { border-color: #e5a69c; color: #942514; }
-.screen__state--error[aria-pressed="true"] { background: var(--red); border-color: var(--red); color: #fff; }
+.screen__state--error[aria-pressed="true"] { background: #f6d7d2; border-color: #942514; color: #942514; }
 .panel__states li { padding: 3px 0; border: 0; }
 .screen__body { flex: 1; overflow: auto; background: #f3f2f1; padding: 16px; }
 .screen__body img { display: block; margin: 0 auto; max-width: 100%; height: auto; image-rendering: auto; background: #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, .15); }
@@ -178,8 +180,6 @@ input[type="search"] {
 .panel__external { color: var(--blue); overflow-wrap: anywhere; }
 
 .btn--share { font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
-.count { background: #ffdd00; color: var(--text); border-radius: 999px; font-size: 12px; font-weight: 700; padding: 0 7px; line-height: 18px; }
-.count[hidden] { display: none; }
 .share__menu { min-width: 300px; }
 .share__menu button { display: flex; flex-direction: column; gap: 2px; }
 .share__menu button span { font-size: 12.5px; color: var(--muted); }
@@ -194,6 +194,12 @@ input[type="search"] {
 .notes__field:focus { outline: 3px solid var(--focus); outline-offset: 0; box-shadow: inset 0 0 0 2px var(--text); }
 .notes__status { margin: 4px 0 0; min-height: 1.2em; font-size: 12.5px; color: var(--muted); }
 .notes__text { white-space: pre-wrap; margin: 4px 0 0; }
+.notes__state { margin: 6px 0 0; }
+/* A state tab or states-box link whose state has notes */
+.has-note::after {
+  content: 'Notes'; display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; vertical-align: 1px;
+  background: #ffdd00; color: #0b0c0c; font-size: 11px; font-weight: 700; line-height: 16px; text-decoration: none;
+}
 
 .screen__main { flex: 1; min-height: 0; display: flex; }
 .screen__main .screen__body { min-width: 0; }

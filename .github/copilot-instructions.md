@@ -32,6 +32,7 @@ Write all text for designers in plain English, following the GOV.UK style: short
    - `lib/routes.js` `parseRoutes()`: reads route files with acorn and works out each `res.redirect` / `res.render` and the conditions around it (`if`/`else`, early returns, `switch`, ternaries, `&&`), following constants, template strings, helper functions and variables copied from `req.session.data`.
    - A route with no page of its own (a form's address that redirects, or a link to an address that redirects) isn't drawn: the page is joined straight to where the route sends it (`decided` edges). Don't bring back "decision" blocks; designers found them confusing.
    - Edges have a `kind`: `submit`, `redirect`, `link` or `change`. Change links and links that loop back are marked `return: true` and kept out of the layout.
+   - The start page (`mainEntry`) is the page nothing links to that reaches the most pages. When the journey is a loop (an end page links back to the account home, so every page has a link in), it's the first page the journey's `index.html` lists, then a page named like `home`, `start` or `index`. Links are checked for "goes back" nearest the start first, so the link back home is the return link, not the way into the journey.
 2. `lib/names.js` `nameBranches()` turns each edge's `rule` into a `label`. It runs again after screenshots, when labels the template builds from data are known (`renderedFields`). `--create-names` writes the names file for rules still shown as code.
 3. `lib/screenshots.js` (unless `--no-screenshots`): starts its own copy of the prototype on a spare port (`NODE_ENV=development`, `USE_HTTPS=false`, `USE_AUTH=false`) or uses `--url`, then takes screenshots with puppeteer-core and the Chrome or Edge already installed. Screenshots are 2× WebP (thumbnails 2× JPEG). Details, accordions and tabs are opened before every screenshot. Error attempts run in a separate private browser context so they don't change the session used for other screenshots.
 4. `lib/layout.js` lays out the map with ELK, top to bottom and left to right, with and without thumbnails, and adds each node's lines and badges. Node sizes here must match how `viewer/viewer.js` draws them.
@@ -42,8 +43,10 @@ The viewer (`viewer/`) is plain JavaScript with no build step and no libraries:
 - `viewer/template.html`: page structure.
 - `viewer/viewer.css`: page styles. `viewer/map.css`: styles inside the SVG, so they go with an exported SVG.
 - `viewer/viewer.js`: drawing, pan and zoom, side panel, full-screen view with state tabs, notes, Share and Export.
-- Notes are saved in `localStorage` per journey (`journey-map:notes:<scope URL>`) as you type, and written into a downloaded copy of the map by "Download map with notes". Always wrap storage in `try`/`catch`: the map must work without it.
+- Notes are saved in `localStorage` per map (`journey-map:notes:<scope URL>:<createdAt>`, or without `:<createdAt>` for older maps), so a new map of the same journey starts with no notes and older versions keep theirs. Each state has its own note: the page as it opens uses the page id, other states use `<page id>#<state number>` (`noteKey()`), so notes from older maps still show on the page as it opens. They're saved as you type, and written into a downloaded copy of the map by "Download map with notes". Always wrap storage in `try`/`catch`: the map must work without it.
 - Build DOM with the `h()` and `make()` helpers and `textContent`, never `innerHTML` with page content.
+- The key (`#legend`) only shows rows for what's on the map: each row has a `data-show` that `viewer.js` checks against the data.
+- `meta.createdAt` (set in `render.js`) is when the map was made. It's shown in the header and tab title, and used in download and export file names. Older maps don't have it, so check before using it.
 
 ## Installing (for helping colleagues)
 

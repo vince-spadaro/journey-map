@@ -342,6 +342,12 @@
   }
 
   // Every screen state of a page, each opening in the full-screen view
+  // Opens a state in full screen; marked when that state has notes
+  function stateButton (n, index, label) {
+    const key = noteKey(n.id, index)
+    return h('button', { class: 'linkish' + (hasNote(key) ? ' has-note' : ''), type: 'button', 'data-note-key': key, onclick: () => openScreen(n.id, index) }, label)
+  }
+
   function statesBox (n) {
     const indexed = n.states.map((st, i) => ({ st, index: i + 1 }))
     const others = indexed.filter(x => x.st.kind !== 'error')
@@ -355,12 +361,11 @@
         h('p', { class: 'panel__states-group' }, 'States'),
         h('ul', null,
           h('li', null,
-            h('button', { class: 'linkish', type: 'button', onclick: () => openScreen(n.id, 0) },
-              n.sameAsAnswer ? 'As it opens, and after “' + n.sameAsAnswer + '”' : 'As it opens'),
+            stateButton(n, 0, openingLabel(n)),
             h('span', { class: 'panel__how' }, 'When the page is first opened' + (n.sameAsAnswer ? ', or after choosing “' + n.sameAsAnswer + '”' : ''))
           ),
           others.map(({ st, index }) => h('li', null,
-            h('button', { class: 'linkish', type: 'button', onclick: () => openScreen(n.id, index) }, stateLabel(st)),
+            stateButton(n, index, stateLabel(st)),
             h('span', { class: 'panel__how' },
               st.kind === 'variant' ? 'After the link “' + st.label + '” (' + st.query + ')'
                 : st.kind === 'answer' ? 'After choosing “' + st.label + '”' + (st.question ? ' for “' + st.question + '”' : '')
@@ -371,7 +376,7 @@
       errors.length ? [
         h('p', { class: 'panel__states-group panel__states-group--error' }, 'Errors'),
         h('ul', null, errors.map(({ st, index }) => h('li', null,
-          h('button', { class: 'linkish', type: 'button', onclick: () => openScreen(n.id, index) }, st.messages.join(' / ')),
+          stateButton(n, index, st.messages.join(' / ')),
           h('span', { class: 'panel__how' }, 'After: ' + st.label)
         )))
       ] : null
@@ -479,10 +484,10 @@
         h('img', { src: n.shot, alt: 'Screenshot of ' + n.title }),
         h('span', null, 'Full screen')
       ) : null,
-      n.shot && n.states.length ? statesBox(n) : null,
       expandedNote(n),
       hasShots && n.type === 'page' && !n.shot ? h('p', { class: 'panel__empty' }, 'No screenshot' + (n.shotError ? ': ' + n.shotError : '')) : null,
-      n.type === 'page' ? noteEditor(n.id, 'panel') : null,
+      n.type === 'page' ? noteEditor(n.id, 'panel', 0) : null,
+      n.shot && n.states.length ? statesBox(n) : null,
       h('p', { class: 'panel__kind' }, KIND_LABEL[n.type] + (n.entry ? ' · Start' : '')),
       h('h2', null, n.title),
       n.heading && n.heading !== n.title ? h('p', { class: 'panel__heading' }, n.heading) : null,
@@ -769,11 +774,13 @@
     return st.label + (st.type === 'checkbox' ? ' ticked' : ' selected')
   }
 
+  const openingLabel = n => n.sameAsAnswer ? 'As it opens, and after “' + n.sameAsAnswer + '”' : 'As it opens'
+
   // stateIndex 0 is the page as it opens; 1 onwards are its other states
   function openScreen (id, stateIndex) {
     const n = nodesById.get(id)
     if (!n || !n.shot) return
-    const states = [{ label: n.sameAsAnswer ? 'As it opens, and after “' + n.sameAsAnswer + '”' : 'As it opens', shot: n.shot, shotWidth: n.shotWidth, shotHeight: n.shotHeight, cutOff: n.cutOff }]
+    const states = [{ label: openingLabel(n), shot: n.shot, shotWidth: n.shotWidth, shotHeight: n.shotHeight, cutOff: n.cutOff }]
       .concat(n.states.map(st => ({ ...st, how: st.label, label: stateLabel(st) })))
     const current = Math.min(stateIndex || 0, states.length - 1)
     const view = states[current]
@@ -787,12 +794,15 @@
       (e.details || e.accordions || e.tabs ? ' · Shown with folded content opened' : '') +
       (view.kind === 'error' ? ' · Error after: ' + view.how + ' · ' + view.messages.join(' · ') : '') +
       (view.cutOff ? ' · Only the top of this long page is shown' : '')
+    // The line is cut short to fit: hovering shows all of it
+    $('#screen-meta').title = $('#screen-meta').textContent
 
     const tabs = $('#screen-states')
     tabs.hidden = states.length < 2
     tabs.replaceChildren(...(states.length < 2 ? [] : states.map((st, i) => h('button', {
       type: 'button',
-      class: 'screen__state' + (st.kind === 'error' ? ' screen__state--error' : ''),
+      class: 'screen__state' + (st.kind === 'error' ? ' screen__state--error' : '') + (hasNote(noteKey(id, i)) ? ' has-note' : ''),
+      'data-note-key': noteKey(id, i),
       title: st.kind === 'error' ? st.messages.join('\n') : null,
       'aria-pressed': String(i === current),
       onclick: () => openScreen(id, i)
@@ -805,12 +815,17 @@
     img.width = view.shotWidth
     img.height = view.shotHeight
     $('#screen-open').href = 'http://localhost:' + data.meta.port + n.url
+    const code = $('#screen-code')
+    code.hidden = !n.absFile
+    if (n.absFile) code.href = vscodeLink(n.absFile)
     $('#screen-prev').disabled = index <= 0
     $('#screen-next').disabled = index >= screens.length - 1
     applyScreenZoom()
-    if (!$('#screen-notes').contains(document.activeElement) || state.notesFor !== id) {
-      state.notesFor = id
-      $('#screen-notes').replaceChildren(noteEditor(id, 'screen'))
+    // Each state has its own notes
+    const key = noteKey(id, current)
+    if (!$('#screen-notes').contains(document.activeElement) || state.notesFor !== key) {
+      state.notesFor = key
+      $('#screen-notes').replaceChildren(noteEditor(id, 'screen', current))
     }
     const wasOpen = !viewer.hidden
     viewer.hidden = false
@@ -904,11 +919,13 @@
   // ---------------------------------------------------------------- notes
   //
   // One note per page, kept in this browser as you type (so they survive
-  // closing the tab, and regenerating the map of the same journey). Notes
-  // from a map someone sent you are read from the file and merged in, newest
-  // first. "Download map with notes" writes them into a copy of the file.
+  // closing the tab). Each map keeps its own notes: a new map of the same
+  // journey starts empty, and older versions keep theirs. Notes from a map
+  // someone sent you are read from the file and merged in, newest first.
+  // "Download map with notes" writes them into a copy of the file.
 
-  const NOTES_KEY = 'journey-map:notes:' + data.meta.scopeUrl
+  // Maps made before createdAt existed keep the key they always used
+  const NOTES_KEY = 'journey-map:notes:' + data.meta.scopeUrl + (data.meta.createdAt ? ':' + data.meta.createdAt : '')
   const pages = data.nodes.filter(n => n.type === 'page')
 
   function readNotes (text) {
@@ -939,9 +956,22 @@
   const notesTag = document.getElementById('journey-notes')
   let notes = mergeNotes(readNotes(notesTag && notesTag.textContent), readLocalNotes())
 
-  const noteText = id => (notes[id] && notes[id].text) || ''
-  const hasNote = id => noteText(id).trim() !== ''
-  const notedPages = () => pages.filter(n => hasNote(n.id))
+  // Each state of a page has its own notes. The page as it opens uses the
+  // page's id, so notes typed before states had notes still show there.
+  const noteKey = (id, stateIndex) => stateIndex ? id + '#' + stateIndex : id
+  const noteText = key => (notes[key] && notes[key].text) || ''
+  const hasNote = key => noteText(key).trim() !== ''
+
+  // The page as it opens, then each photographed state
+  function noteSlots (n) {
+    const states = n.shot ? n.states : []
+    return [{ index: 0, key: n.id, label: openingLabel(n), error: false }].concat(states.map((st, i) => ({
+      index: i + 1, key: noteKey(n.id, i + 1), label: stateLabel(st), error: st.kind === 'error'
+    })))
+  }
+  const notedSlots = n => noteSlots(n).filter(slot => hasNote(slot.key))
+  const pageHasNotes = n => notedSlots(n).length > 0
+  const notedPages = () => pages.filter(pageHasNotes)
 
   let saveTimer = null
   let savedLocally = true
@@ -964,39 +994,67 @@
       : 'Couldn’t save in this browser. Use Share › Download map with notes to keep them.'
   }
 
-  function setNote (id, text) {
-    notes[id] = { text, updated: Date.now() }
+  function setNote (id, stateIndex, text) {
+    const key = noteKey(id, stateIndex)
+    notes[key] = { text, updated: Date.now() }
     document.querySelectorAll('.notes__status').forEach(el => { el.textContent = 'Saving…' })
     clearTimeout(saveTimer)
     saveTimer = setTimeout(saveNotes, 400)
     refreshNoteFlag(id)
+    refreshNoteMarks()
     updateShareButton()
   }
 
-  function noteEditor (id, where) {
+  // The marks on state tabs and in the states box that have notes
+  function refreshNoteMarks () {
+    document.querySelectorAll('[data-note-key]').forEach(el => el.classList.toggle('has-note', hasNote(el.dataset.noteKey)))
+  }
+
+  // Keeps the size the designer drags the notes box to, in the panel and in
+  // full screen separately. Saved only after a drag, so the page's own
+  // layout changes are never remembered as a choice.
+  function rememberHeight (field, key) {
+    const saved = Number(store.get(key))
+    if (saved > 0) field.style.height = saved + 'px'
+    field.addEventListener('pointerdown', () => {
+      const before = field.offsetHeight
+      window.addEventListener('pointerup', () => {
+        if (field.offsetHeight > 0 && field.offsetHeight !== before) store.set(key, field.offsetHeight)
+      }, { once: true })
+    })
+  }
+
+  function noteEditor (id, where, stateIndex) {
     const n = nodesById.get(id)
+    const slot = noteSlots(n)[stateIndex] || noteSlots(n)[0]
+    // Say which state the notes are for, when the page has more than one
+    const which = noteSlots(n).length > 1 ? slot.label : ''
     const fieldId = 'notes-' + where
     const field = h('textarea', {
       id: fieldId,
       class: 'notes__field',
       rows: where === 'screen' ? 12 : 5,
-      placeholder: 'Type notes about this screen. They save as you type.',
+      placeholder: 'Type notes about this ' + (slot.error ? 'error' : which ? 'state' : 'screen') + '. They save as you type.',
       spellcheck: 'true'
     })
-    field.value = noteText(id)
-    field.addEventListener('input', () => setNote(id, field.value))
+    field.value = noteText(slot.key)
+    rememberHeight(field, 'notes-height-' + where)
+    field.addEventListener('input', () => setNote(id, slot.index, field.value))
     field.addEventListener('blur', () => { clearTimeout(saveTimer); saveNotes() })
+    const about = where === 'screen'
+      ? ' on ' + n.title + (which ? ' – ' + which : '')
+      : which ? ' – ' + which : ''
     return h('div', { class: 'notes notes--' + where },
-      h('label', { class: 'notes__label', for: fieldId }, 'Notes', where === 'screen' ? h('span', null, ' on ' + n.title) : null),
+      h('label', { class: 'notes__label', for: fieldId }, 'Notes', about ? h('span', null, about) : null),
       field,
-      h('p', { class: 'notes__status', 'aria-live': 'polite' }, hasNote(id) ? statusText() : '')
+      h('p', { class: 'notes__status', 'aria-live': 'polite' }, hasNote(slot.key) ? statusText() : '')
     )
   }
 
   // A small yellow marker on the card's top-right corner. It sits on top of
   // the card, so adding a note never moves anything on the map.
   function drawNoteFlag (g, n, box) {
-    if (!hasNote(n.id)) return
+    if (!pageHasNotes(n)) return
     const flag = make('g', { class: 'note-flag', transform: 'translate(' + (box.width - 22) + ' -10)' }, g)
     make('title', null, flag, 'Has notes')
     make('rect', { width: 30, height: 24, rx: 4 }, flag)
@@ -1019,7 +1077,13 @@
     lines.push('')
     noted.forEach(n => {
       lines.push((pages.indexOf(n) + 1) + '. ' + n.title + ' (' + (n.fileName || n.url) + ')')
-      noteText(n.id).trim().split('\n').forEach(line => lines.push(line.trim() ? '   ' + line.trim() : ''))
+      // Name the state each note is about when the page has more than one
+      const named = noteSlots(n).length > 1
+      const indent = named ? '     ' : '   '
+      notedSlots(n).forEach(slot => {
+        if (named) lines.push('   ' + slot.label + ':')
+        noteText(slot.key).trim().split('\n').forEach(line => lines.push(line.trim() ? indent + line.trim() : ''))
+      })
       lines.push('')
     })
     return lines.join('\n').trim() + '\n'
@@ -1067,7 +1131,12 @@
             ),
             h('ul', null, noted.map(n => h('li', null,
               h('button', { class: 'linkish', type: 'button', onclick: () => select(n.id, true) }, (pages.indexOf(n) + 1) + '. ' + n.title),
-              h('p', { class: 'notes__text' }, noteText(n.id).trim())
+              noteSlots(n).length > 1
+                ? notedSlots(n).map(slot => h('div', { class: 'notes__state' },
+                    h('button', { class: 'linkish', type: 'button', onclick: () => { select(n.id, true); openScreen(n.id, slot.index) } }, slot.label),
+                    h('p', { class: 'notes__text' }, noteText(slot.key).trim())
+                  ))
+                : h('p', { class: 'notes__text' }, noteText(n.id).trim())
             )))
           ]
         : h('p', { class: 'panel__empty' }, 'No notes yet. Click a screen and type in its Notes box.')
@@ -1087,8 +1156,6 @@
 
   function updateShareButton () {
     const count = notedPages().length
-    $('#share-count').textContent = count ? String(count) : ''
-    $('#share-count').hidden = !count
     $('#share-all-label').textContent = count ? 'See all notes (' + count + ')' : 'See all notes'
   }
 
@@ -1115,6 +1182,7 @@
     if (event.key !== NOTES_KEY) return
     notes = mergeNotes(notes, readNotes(event.newValue))
     pages.forEach(n => refreshNoteFlag(n.id))
+    refreshNoteMarks()
     updateShareButton()
   })
   window.addEventListener('beforeunload', () => { clearTimeout(saveTimer); saveNotes() })
