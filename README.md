@@ -224,7 +224,8 @@ To share names with your team, keep the file somewhere you all use, like a share
   - **Download map with notes** saves a copy of the map with your notes inside. Send that file: whoever opens it sees the notes and can add their own.
   - **Copy notes as text** copies every note, in journey order, to paste into Jira, Confluence, Teams or an email.
   - **See all notes** lists every note in the side panel.
-- **Export** saves the map as a PNG, as an SVG for Mural, or as a PDF through Print.
+- **Export** saves the map as an SVG for Mural.
+- **SVG for Mural with all states** saves the map with every state and error of each page next to it, each with its name, so a whole review fits on one Mural board. Errors have a red border. It's in the Export menu on maps with screenshots of other states or errors (make the map again if you don't see it).
 
 ## Reviewing in a call
 

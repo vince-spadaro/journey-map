@@ -54,6 +54,7 @@ input[type="search"] {
 .export__menu[hidden] { display: none; }
 .export__menu button { text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 6px; }
 .export__menu button:hover { background: #f3f2f1; }
+.export__menu button[hidden] { display: none; }
 
 .stage { position: relative; flex: 1; min-height: 0; }
 .canvas {

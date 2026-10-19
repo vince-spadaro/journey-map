@@ -179,6 +179,37 @@ test('lays out and renders a self-contained HTML file', async () => {
   assert.strictEqual(JSON.parse(json).nodes.length, graph.nodes.length)
 })
 
+test('lays out every state and error beside its page for the Mural export', async () => {
+  const graph = buildGraph({ root, scopeDir })
+  graph.meta.screenshots = true
+  const page = node(graph, 'where-do-you-live')
+  page.shot = 'data:image/webp;base64,'
+  page.states = [
+    { kind: 'error', label: 'Continue with nothing chosen', messages: ['Select where you live'], shot: 'data:image/webp;base64,' },
+    { kind: 'reveal', label: 'Abroad', type: 'radio', shot: 'data:image/webp;base64,' }
+  ]
+  await addLayouts(graph)
+  assert.deepStrictEqual(page.stateCards.map(c => [c.kind, c.error, c.lines.join(' ')]), [
+    ['Error 1', true, 'Select where you live'],
+    ['State 2', false, 'Abroad selected']
+  ])
+  for (const dir of ['DOWN', 'RIGHT']) {
+    const layout = graph.layouts[dir + ':states']
+    const box = layout.nodes[page.id]
+    assert.strictEqual(box.cards.length, 2)
+    // The states sit inside the page's box, clear of the page card
+    for (const card of box.cards) {
+      assert.ok(card.x + card.width <= box.width && card.y + card.height <= box.height)
+      assert.ok(card.x >= box.card.width || card.y >= box.card.height)
+    }
+    // Lines join the page card, not the states
+    const into = graph.edges.find(e => e.to === page.id && !e.return)
+    const end = layout.edges[into.id].points.slice(-1)[0]
+    if (dir === 'DOWN') assert.strictEqual(end.x, box.x + box.card.width / 2)
+    else assert.strictEqual(end.y, box.y + box.card.height / 2)
+  }
+})
+
 test('shows the whole file name, wrapped at hyphens when it is long', async () => {
   const graph = buildGraph({ root, scopeDir })
   const page = node(graph, 'where-do-you-live')
