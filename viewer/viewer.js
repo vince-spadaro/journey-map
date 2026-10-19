@@ -40,10 +40,13 @@
     screenZoom: store.get('screen-zoom') || 'fit',
     matches: [],
     matchIndex: -1,
-    view: { x: 0, y: 0, k: 1 }
+    view: { x: 0, y: 0, k: 1 },
+    // Only while "SVG for Mural with all states" draws the map to export it
+    withStates: null
   }
 
   function currentLayout () {
+    if (state.withStates) return data.layouts[state.dir + ':states']
     return data.layouts[state.dir + (hasShots && state.thumbs ? ':thumbs' : '')]
   }
 
@@ -276,11 +279,13 @@
       'aria-label': KIND_LABEL[n.type] + ': ' + n.title
     }, layers.nodes)
     make('title', null, g, n.title + '\n' + (n.file || n.url))
-    make('rect', { class: 'card', width: box.width, height: box.height, rx: 8 }, g)
+    // With all states, the page's box also holds its state cards
+    const card = box.card || box
+    make('rect', { class: 'card', width: card.width, height: card.height, rx: 8 }, g)
 
     if (n.type === 'page') {
-      const shift = hasShots && state.thumbs ? THUMB_SPACE : 0
-      if (shift) drawThumb(n, g, box)
+      const shift = hasShots && (state.thumbs || state.withStates) ? THUMB_SPACE : 0
+      if (shift) drawThumb(n, g, card)
       n.lines.forEach((line, i) => make('text', { class: 'title', x: 14, y: shift + 30 + i * 19 }, g, line))
       const top = shift + 16 + n.lines.length * 19 + 4
       // The whole file name, one line or more (sizes match lib/layout.js)
@@ -292,7 +297,8 @@
         make('text', { class: 'badge-text badge-text-' + badge.kind, x: x + badge.width / 2, y: badgeTop + 14, 'text-anchor': 'middle' }, g, badge.text)
         x += badge.width + 6
       })
-      drawNoteFlag(g, n, box)
+      drawNoteFlag(g, n, card)
+      if (box.cards) n.stateCards.forEach((sc, i) => drawStateCard(n, sc, box.cards[i], g))
     } else if (n.type === 'decision') {
       make('text', { class: 'kind', x: 14, y: 23 }, g, '◆ DECISION IN CODE')
       n.lines.forEach((line, i) => make('text', { class: 'title', x: 14, y: 41 + i * 18 }, g, line))
@@ -300,6 +306,30 @@
       make('text', { class: 'kind', x: 12, y: 20 }, g, n.type === 'missing' ? '✕ PAGE NOT FOUND' : '↗ OUTSIDE THIS JOURNEY')
       n.lines.forEach((line, i) => make('text', { class: 'title', x: 12, y: 36 + i * 17 }, g, line))
     }
+  }
+
+  // A state's screenshot with its name underneath (sizes match lib/layout.js)
+  function drawStateCard (n, sc, box, parent) {
+    const g = make('g', { class: 'state-card' + (sc.error ? ' state-card-error' : ''), transform: 'translate(' + box.x + ' ' + box.y + ')' }, parent)
+    make('title', null, g, n.title + ': ' + sc.kind + '\n' + sc.lines.join(' '))
+    make('rect', { class: 'card', width: box.width, height: box.height, rx: 8 }, g)
+    const width = box.width - 28
+    const clipId = 'clip-' + n.id.replace(/[^a-z0-9]/gi, '-') + '-' + sc.index
+    make('rect', { x: 14, y: 14, width, height: THUMB_HEIGHT, rx: 4 }, make('clipPath', { id: clipId }, g))
+    make('image', {
+      class: 'state-thumb',
+      href: state.withStates.get(n.id + '#' + sc.index),
+      x: 14,
+      y: 14,
+      width,
+      height: THUMB_HEIGHT,
+      preserveAspectRatio: 'xMidYMin slice',
+      'clip-path': 'url(#' + clipId + ')'
+    }, g)
+    make('rect', { class: 'thumb-frame', x: 14, y: 14, width, height: THUMB_HEIGHT, rx: 4 }, g)
+    const top = 14 + THUMB_HEIGHT + 18
+    make('text', { class: 'kind', x: 14, y: top }, g, sc.kind.toUpperCase())
+    sc.lines.forEach((line, i) => make('text', { class: 'state-text', x: 14, y: top + 18 + i * 17 }, g, line))
   }
 
   // ---------------------------------------------------------------- text
@@ -1204,9 +1234,8 @@
     if (!btn) return
     closeMenu()
     const kind = btn.dataset.export
-    if (kind === 'svg') download(new Blob([svgString()], { type: 'image/svg+xml' }), fileName('svg'))
-    else if (kind === 'png') exportPng()
-    else printMap()
+    if (kind === 'svg') exportSvg()
+    else if (kind === 'svg-states') exportWithStates()
   })
 
   function fileName (ext) {
@@ -1219,8 +1248,9 @@
     return { x: box.x - pad, y: box.y - pad, width: box.width + pad * 2, height: box.height + pad * 2 }
   }
 
-  // The map as a standalone SVG, at full size, without the current selection
-  function svgString () {
+  // The map as a standalone SVG, at full size, without the current selection.
+  // `pictures` has the sharp screenshot for each page, by page id.
+  function svgString (pictures) {
     const box = contentBox()
     const clone = svg.cloneNode(true)
     clone.classList.remove('has-selection', 'is-searching', 'is-panning')
@@ -1235,26 +1265,62 @@
     clone.insertBefore(background, clone.querySelector('#viewport'))
     clone.querySelectorAll('.node').forEach(el => { el.removeAttribute('tabindex'); el.classList.remove('is-selected', 'is-match') })
     clone.querySelectorAll('image.thumb').forEach(img => {
-      img.setAttribute('href', nodesById.get(img.closest('.node').getAttribute('data-id')).thumb)
+      const n = nodesById.get(img.closest('.node').getAttribute('data-id'))
+      img.setAttribute('href', pictures.get(n.id) || n.thumb)
     })
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone)
   }
 
-  function exportPng () {
-    const box = contentBox()
-    const scale = Math.min(2, 16000 / Math.max(box.width, box.height))
-    const image = new Image()
-    image.onload = () => {
-      const c = document.createElement('canvas')
-      c.width = Math.round(box.width * scale)
-      c.height = Math.round(box.height * scale)
-      const ctx = c.getContext('2d')
-      ctx.fillStyle = '#fff'
-      ctx.fillRect(0, 0, c.width, c.height)
-      ctx.drawImage(image, 0, 0, c.width, c.height)
-      c.toBlob(blob => download(blob, fileName('png')), 'image/png')
+  // Maps made before this was added have no room for the states
+  const canExportStates = !!data.layouts['DOWN:states']
+  $('#export-states').hidden = !canExportStates
+
+  // The top of a screenshot, as on the map, at the page's real size: clear
+  // enough to read in a design review on a Mural board without the file
+  // getting huge. JPEG, as Mural may not read WebP.
+  function sharpPicture (src) {
+    return new Promise(resolve => {
+      const image = new Image()
+      image.onload = () => {
+        const c = document.createElement('canvas')
+        c.width = Math.min(image.naturalWidth, 1280)
+        c.height = Math.round(c.width * 0.75)
+        const ctx = c.getContext('2d')
+        ctx.fillStyle = '#fff'
+        ctx.fillRect(0, 0, c.width, c.height)
+        const height = Math.min(image.naturalHeight, image.naturalWidth * 0.75)
+        ctx.drawImage(image, 0, 0, image.naturalWidth, height, 0, 0, c.width, c.width * height / image.naturalWidth)
+        resolve(c.toDataURL('image/jpeg', 0.85))
+      }
+      image.onerror = () => resolve(src)
+      image.src = src
+    })
+  }
+
+  async function pagePictures () {
+    const pictures = new Map()
+    for (const n of data.nodes) if (n.shot) pictures.set(n.id, await sharpPicture(n.shot))
+    return pictures
+  }
+
+  async function exportSvg () {
+    download(new Blob([svgString(await pagePictures())], { type: 'image/svg+xml' }), fileName('svg'))
+  }
+
+  // The map with every state and error beside its page, drawn only to be saved
+  async function exportWithStates () {
+    const pictures = await pagePictures()
+    for (const n of data.nodes) {
+      for (const sc of n.stateCards || []) pictures.set(n.id + '#' + sc.index, await sharpPicture(n.states[sc.index - 1].shot))
     }
-    image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString())
+    state.withStates = pictures
+    try {
+      draw()
+      download(new Blob([svgString(pictures)], { type: 'image/svg+xml' }), data.meta.slug + '-journey-map-all-states-' + madeStamp() + '.svg')
+    } finally {
+      state.withStates = null
+      draw()
+    }
   }
 
   function download (blob, name) {
@@ -1264,20 +1330,6 @@
     a.click()
     a.remove()
     setTimeout(() => URL.revokeObjectURL(url), 2000)
-  }
-
-  function printMap () {
-    const box = contentBox()
-    const transform = viewport.getAttribute('transform')
-    const restore = () => {
-      svg.removeAttribute('viewBox')
-      viewport.setAttribute('transform', transform)
-      window.removeEventListener('afterprint', restore)
-    }
-    svg.setAttribute('viewBox', [box.x, box.y, box.width, box.height].join(' '))
-    viewport.removeAttribute('transform')
-    window.addEventListener('afterprint', restore)
-    window.print()
   }
 
   // ---------------------------------------------------------------- start
