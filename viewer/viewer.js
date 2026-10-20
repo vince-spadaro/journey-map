@@ -41,13 +41,16 @@
     matches: [],
     matchIndex: -1,
     view: { x: 0, y: 0, k: 1 },
-    // Only while "SVG for Mural with all states" draws the map to export it
-    withStates: null
+    // Only while a Mural export draws the map to save it: which layout
+    // ('full' or 'states') and the screenshots to put in it
+    exporting: null
   }
 
   function currentLayout () {
-    if (state.withStates) return data.layouts[state.dir + ':states']
-    return data.layouts[state.dir + (hasShots && state.thumbs ? ':thumbs' : '')]
+    const thumbs = data.layouts[state.dir + (hasShots && state.thumbs ? ':thumbs' : '')]
+    // Maps made before whole screenshots were exported keep their thumbnails' shape
+    if (state.exporting) return data.layouts[state.dir + ':' + state.exporting.layout] || thumbs
+    return thumbs
   }
 
   const KIND_LABEL = { page: 'Page', decision: 'Decision made in code', exit: 'Outside this journey', missing: 'Page not found' }
@@ -240,13 +243,12 @@
   }
 
   const THUMB_HEIGHT = 165
-  const THUMB_SPACE = THUMB_HEIGHT + 10
 
-  function drawThumb (n, g, box) {
+  function drawThumb (n, g, box, height) {
     const width = box.width - 28
     const clipId = 'clip-' + n.id.replace(/[^a-z0-9]/gi, '-')
     const clip = make('clipPath', { id: clipId }, g)
-    make('rect', { x: 14, y: 14, width, height: THUMB_HEIGHT, rx: 4 }, clip)
+    make('rect', { x: 14, y: 14, width, height, rx: 4 }, clip)
     if (n.thumb) {
       make('image', {
         class: 'thumb',
@@ -254,15 +256,15 @@
         x: 14,
         y: 14,
         width,
-        height: THUMB_HEIGHT,
+        height,
         preserveAspectRatio: 'xMidYMin slice',
         'clip-path': 'url(#' + clipId + ')'
       }, g)
     } else {
-      make('rect', { class: 'thumb-empty', x: 14, y: 14, width, height: THUMB_HEIGHT, rx: 4 }, g)
-      make('text', { class: 'thumb-empty-text', x: 14 + width / 2, y: 14 + THUMB_HEIGHT / 2 + 4, 'text-anchor': 'middle' }, g, 'No screenshot')
+      make('rect', { class: 'thumb-empty', x: 14, y: 14, width, height, rx: 4 }, g)
+      make('text', { class: 'thumb-empty-text', x: 14 + width / 2, y: 14 + height / 2 + 4, 'text-anchor': 'middle' }, g, 'No screenshot')
     }
-    make('rect', { class: 'thumb-frame', x: 14, y: 14, width, height: THUMB_HEIGHT, rx: 4 }, g)
+    make('rect', { class: 'thumb-frame', x: 14, y: 14, width, height, rx: 4 }, g)
   }
 
   function drawNode (n, box) {
@@ -279,13 +281,15 @@
       'aria-label': KIND_LABEL[n.type] + ': ' + n.title
     }, layers.nodes)
     make('title', null, g, n.title + '\n' + (n.file || n.url))
-    // With all states, the page's box also holds its state cards
+    // In the Mural exports the screenshot is whole, and with all states the
+    // page's box also holds its state cards
     const card = box.card || box
     make('rect', { class: 'card', width: card.width, height: card.height, rx: 8 }, g)
 
     if (n.type === 'page') {
-      const shift = hasShots && (state.thumbs || state.withStates) ? THUMB_SPACE : 0
-      if (shift) drawThumb(n, g, card)
+      const picture = state.exporting && card.picture ? card.picture : THUMB_HEIGHT
+      const shift = hasShots && (state.thumbs || state.exporting) ? picture + 10 : 0
+      if (shift) drawThumb(n, g, card, picture)
       n.lines.forEach((line, i) => make('text', { class: 'title', x: 14, y: shift + 30 + i * 19 }, g, line))
       const top = shift + 16 + n.lines.length * 19 + 4
       // The whole file name, one line or more (sizes match lib/layout.js)
@@ -315,19 +319,20 @@
     make('rect', { class: 'card', width: box.width, height: box.height, rx: 8 }, g)
     const width = box.width - 28
     const clipId = 'clip-' + n.id.replace(/[^a-z0-9]/gi, '-') + '-' + sc.index
-    make('rect', { x: 14, y: 14, width, height: THUMB_HEIGHT, rx: 4 }, make('clipPath', { id: clipId }, g))
+    const height = box.picture
+    make('rect', { x: 14, y: 14, width, height, rx: 4 }, make('clipPath', { id: clipId }, g))
     make('image', {
       class: 'state-thumb',
-      href: state.withStates.get(n.id + '#' + sc.index),
+      href: state.exporting.pictures.get(n.id + '#' + sc.index),
       x: 14,
       y: 14,
       width,
-      height: THUMB_HEIGHT,
+      height,
       preserveAspectRatio: 'xMidYMin slice',
       'clip-path': 'url(#' + clipId + ')'
     }, g)
-    make('rect', { class: 'thumb-frame', x: 14, y: 14, width, height: THUMB_HEIGHT, rx: 4 }, g)
-    const top = 14 + THUMB_HEIGHT + 18
+    make('rect', { class: 'thumb-frame', x: 14, y: 14, width, height, rx: 4 }, g)
+    const top = 14 + height + 18
     make('text', { class: 'kind', x: 14, y: top }, g, sc.kind.toUpperCase())
     sc.lines.forEach((line, i) => make('text', { class: 'state-text', x: 14, y: top + 18 + i * 17 }, g, line))
   }
@@ -1248,11 +1253,13 @@
     return { x: box.x - pad, y: box.y - pad, width: box.width + pad * 2, height: box.height + pad * 2 }
   }
 
-  // The map as a standalone SVG, at full size, without the current selection.
-  // `pictures` has the sharp screenshot for each page, by page id.
+  // The map as a standalone SVG, at full size, without the current selection,
+  // with the key on the right. `pictures` has each page's screenshot, by id.
   function svgString (pictures) {
-    const box = contentBox()
+    const map = contentBox()
     const clone = svg.cloneNode(true)
+    const key = drawKey(map.x + map.width, map.y + 24)
+    const box = { x: map.x, y: map.y, width: map.width + key.width + 24, height: Math.max(map.height, key.height + 48) }
     clone.classList.remove('has-selection', 'is-searching', 'is-panning')
     clone.querySelector('#viewport').removeAttribute('transform')
     clone.setAttribute('viewBox', [box.x, box.y, box.width, box.height].join(' '))
@@ -1263,6 +1270,7 @@
     ;[['x', box.x], ['y', box.y], ['width', box.width], ['height', box.height], ['fill', '#ffffff']]
       .forEach(([k, v]) => background.setAttribute(k, v))
     clone.insertBefore(background, clone.querySelector('#viewport'))
+    clone.appendChild(key.g)
     clone.querySelectorAll('.node').forEach(el => { el.removeAttribute('tabindex'); el.classList.remove('is-selected', 'is-match') })
     clone.querySelectorAll('image.thumb').forEach(img => {
       const n = nodesById.get(img.closest('.node').getAttribute('data-id'))
@@ -1275,21 +1283,20 @@
   const canExportStates = !!data.layouts['DOWN:states']
   $('#export-states').hidden = !canExportStates
 
-  // The top of a screenshot, as on the map, at the page's real size: clear
-  // enough to read in a design review on a Mural board without the file
-  // getting huge. JPEG, as Mural may not read WebP.
+  // The whole screenshot at the page's real size: clear enough to read in a
+  // design review on a Mural board without the file getting huge. JPEG, as
+  // Mural may not read WebP.
   function sharpPicture (src) {
     return new Promise(resolve => {
       const image = new Image()
       image.onload = () => {
         const c = document.createElement('canvas')
         c.width = Math.min(image.naturalWidth, 1280)
-        c.height = Math.round(c.width * 0.75)
+        c.height = Math.round(c.width * image.naturalHeight / image.naturalWidth)
         const ctx = c.getContext('2d')
         ctx.fillStyle = '#fff'
         ctx.fillRect(0, 0, c.width, c.height)
-        const height = Math.min(image.naturalHeight, image.naturalWidth * 0.75)
-        ctx.drawImage(image, 0, 0, image.naturalWidth, height, 0, 0, c.width, c.width * height / image.naturalWidth)
+        ctx.drawImage(image, 0, 0, c.width, c.height)
         resolve(c.toDataURL('image/jpeg', 0.85))
       }
       image.onerror = () => resolve(src)
@@ -1303,24 +1310,95 @@
     return pictures
   }
 
-  async function exportSvg () {
-    download(new Blob([svgString(await pagePictures())], { type: 'image/svg+xml' }), fileName('svg'))
+  // Draws the map again in the export's layout just long enough to save it
+  function saveDrawnAs (layout, pictures, name) {
+    state.exporting = { layout, pictures }
+    try {
+      draw()
+      download(new Blob([svgString(pictures)], { type: 'image/svg+xml' }), name)
+    } finally {
+      state.exporting = null
+      draw()
+    }
   }
 
-  // The map with every state and error beside its page, drawn only to be saved
+  // The map as it is on screen, with whole screenshots when they're showing
+  async function exportSvg () {
+    if (!hasShots || !state.thumbs) {
+      download(new Blob([svgString(new Map())], { type: 'image/svg+xml' }), fileName('svg'))
+      return
+    }
+    saveDrawnAs('full', await pagePictures(), fileName('svg'))
+  }
+
+  // The map with every state and error beside its page
   async function exportWithStates () {
     const pictures = await pagePictures()
     for (const n of data.nodes) {
       for (const sc of n.stateCards || []) pictures.set(n.id + '#' + sc.index, await sharpPicture(n.states[sc.index - 1].shot))
     }
-    state.withStates = pictures
-    try {
-      draw()
-      download(new Blob([svgString(pictures)], { type: 'image/svg+xml' }), data.meta.slug + '-journey-map-all-states-' + madeStamp() + '.svg')
-    } finally {
-      state.withStates = null
-      draw()
+    saveDrawnAs('states', pictures, data.meta.slug + '-journey-map-all-states-' + madeStamp() + '.svg')
+  }
+
+  // The key for an exported map: the journey's name and date, then a row for
+  // each kind of line, card and tag on it, like the key on the map
+  function drawKey (left, top) {
+    const width = 300
+    const g = make('g', { class: 'key', transform: 'translate(' + (left + 24) + ' ' + top + ')' })
+    const showsReturn = svg.classList.contains('show-return')
+    const showsOutside = !svg.classList.contains('hide-outside')
+    const pagesWith = kind => data.nodes.some(n => n.badges && n.badges.some(b => b.kind === kind))
+    const cards = state.exporting && state.exporting.layout === 'states'
+      ? data.nodes.flatMap(n => n.stateCards || [])
+      : []
+    const line = (stroke, strokeWidth, dash) => row => make('line', { x1: 16, y1: row + 1, x2: 64, y2: row + 1, stroke, 'stroke-width': strokeWidth, 'stroke-dasharray': dash }, g)
+    const box = (fill, stroke, dash) => row => make('rect', { x: 16, y: row - 8, width: 48, height: 18, rx: 4, fill, stroke, 'stroke-width': 1.5, 'stroke-dasharray': dash }, g)
+    const tag = (kind, text) => row => {
+      make('rect', { class: 'badge badge-' + kind, x: 16, y: row - 9, width: 60, height: 20, rx: 10 }, g)
+      make('text', { class: 'badge-text badge-text-' + kind, x: 46, y: row + 5, 'text-anchor': 'middle' }, g, text)
     }
+    const rows = [
+      [data.nodes.some(n => n.entry), box('#fff', '#00703c'), 'Start page'],
+      [onMap.flow, line('#505a5f', 2), 'Continue button or redirect'],
+      [onMap.link, line('#1d70b8', 1.5), 'Link'],
+      [onMap.return && showsReturn, line('#912b88', 1.5, '5 3'), 'Change or return link'],
+      [onMap.branch, box('#fff', '#f47738'), 'Branch, named by the answer'],
+      [pagesWith('states'), tag('states', '2 states'), 'Versions of the screen, counting the page as it opens'],
+      [pagesWith('errors'), tag('errors', '1 error'), 'Error screens'],
+      [cards.some(c => !c.error), box('#f8f8f8', '#b1b4b6'), 'Another state of the page beside it'],
+      [cards.some(c => c.error), box('#fdf4f2', '#d4351c'), 'Error screen of the page beside it'],
+      [onMap.decision, box('#fff4e8', '#f47738'), 'Decision made in code'],
+      [onMap.outside && showsOutside, box('#f3f2f1', '#b1b4b6', '4 3'), 'Outside this journey'],
+      [onMap.missing, box('#fdecea', '#d4351c', '4 3'), 'Page not found']
+    ].filter(([shown]) => shown)
+
+    const bg = make('rect', { class: 'key-box', width, rx: 8 }, g)
+    const nameLines = wrapWords(data.meta.name, 30)
+    nameLines.forEach((text, i) => make('text', { class: 'key-name', x: 16, y: 30 + i * 20 }, g, text))
+    let y = 30 + (nameLines.length - 1) * 20
+    if (createdAt) make('text', { class: 'key-meta', x: 16, y: y += 20 }, g, 'Made ' + madeAt())
+    make('text', { class: 'key-heading', x: 16, y: y += 34 }, g, 'Key')
+    y += 10
+    rows.forEach(([, swatch, text]) => {
+      const lines = wrapWords(text, 26)
+      const middle = y + 14 + (lines.length - 1) * 8
+      swatch(middle)
+      lines.forEach((l, i) => make('text', { class: 'key-text', x: 88, y: y + 19 + i * 16 }, g, l))
+      y += 14 + lines.length * 16
+    })
+    const height = y + 16
+    bg.setAttribute('height', height)
+    return { g, width: width + 24, height }
+  }
+
+  function wrapWords (text, max) {
+    const lines = []
+    for (const word of String(text).split(/\s+/)) {
+      const last = lines.length - 1
+      if (last >= 0 && (lines[last] + ' ' + word).length <= max) lines[last] += ' ' + word
+      else lines.push(word)
+    }
+    return lines
   }
 
   function download (blob, name) {

@@ -33,6 +33,12 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 .state-card .state-text { font-size: 13px; fill: #0b0c0c; }
 .state-card-error .card { fill: #fdf4f2; stroke: #d4351c; }
 .state-card-error .kind { fill: #942514; }
+
+.key-box { fill: #fff; stroke: #b1b4b6; stroke-width: 1.5; }
+.key-name { font-size: 17px; font-weight: 700; fill: #0b0c0c; }
+.key-meta { font-size: 12.5px; fill: #505a5f; }
+.key-heading { font-size: 14px; font-weight: 700; fill: #0b0c0c; }
+.key-text { font-size: 13px; fill: #0b0c0c; }
 .thumb-empty { fill: #f3f2f1; }
 .thumb-empty-text { font-size: 12px; fill: #505a5f; }
 
