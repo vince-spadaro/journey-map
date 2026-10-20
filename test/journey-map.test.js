@@ -184,6 +184,9 @@ test('lays out every state and error beside its page for the Mural export', asyn
   graph.meta.screenshots = true
   const page = node(graph, 'where-do-you-live')
   page.shot = 'data:image/webp;base64,'
+  // A long page: the exports show it whole
+  page.shotWidth = 1280
+  page.shotHeight = 3200
   page.states = [
     { kind: 'error', label: 'Continue with nothing chosen', messages: ['Select where you live'], shot: 'data:image/webp;base64,' },
     { kind: 'reveal', label: 'Abroad', type: 'radio', shot: 'data:image/webp;base64,' }
@@ -207,6 +210,8 @@ test('lays out every state and error beside its page for the Mural export', asyn
     const end = layout.edges[into.id].points.slice(-1)[0]
     if (dir === 'DOWN') assert.strictEqual(end.x, box.x + box.card.width / 2)
     else assert.strictEqual(end.y, box.y + box.card.height / 2)
+    assert.strictEqual(box.card.picture, 550)
+    assert.strictEqual(graph.layouts[dir + ':full'].nodes[page.id].card.picture, 550)
   }
 })
 
