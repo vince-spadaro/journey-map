@@ -1,0 +1,27 @@
+{% extends "layouts/main.html" %}
+{# Each page lists its other versions and its errors, with the address that shows each one #}
+{% set journeyPages = [
+  {
+    href: "choose",
+    name: "choose",
+    variants: [
+      { text: "For a trust", href: "choose?type=trust" }
+    ],
+    errors: [
+      { text: "Select yes if this is right", href: "choose?type=trust&amp;error=required" }
+    ]
+  },
+  {
+    href: "confirm",
+    name: "confirm",
+    variants: [
+      { text: "An individual", href: "confirm?type=personal" },
+      { text: "A trust", href: "confirm?type=trust" }
+    ]
+  },
+  { href: "check", name: "check" },
+  { href: "kickout", name: "kickout" }
+] %}
+{% block content %}
+  {% for page in journeyPages %}<a href="{{ page.href }}">{{ page.name }}</a>{% endfor %}
+{% endblock %}

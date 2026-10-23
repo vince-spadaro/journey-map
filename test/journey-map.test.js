@@ -158,6 +158,176 @@ test('starts a journey that loops back to its first page from the first page the
   assert.strictEqual(find(['done', 'home']).return, true, 'the link back home is a return link')
 })
 
+test('starts from the first page the index lists, even when a page that ends the journey links back to it', () => {
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
+  const find = (from, to) => graph.edges.filter(e => e.from === '/listed/' + from && e.to === '/listed/' + to)
+  assert.strictEqual(graph.meta.mainEntry, '/listed/choose')
+  assert.strictEqual(find('kickout', 'choose')[0].return, true, '“Start again” goes back to the start')
+  assert.ok(!graph.nodes.find(n => n.id === '/listed/kickout').entry)
+  // "No" goes to /start, which redirects back to the first page
+  const again = find('confirm', 'choose')
+  assert.strictEqual(again.length, 1)
+  assert.strictEqual(again[0].rule, "confirm = 'false'")
+  assert.strictEqual(again[0].return, true)
+  // so "Yes" is still named as the answer left over
+  nameBranches(graph)
+  assert.strictEqual(find('confirm', 'check')[0].label, '“Yes - this is right”')
+})
+
+test('branches once for each answer the index page lists the next page with', () => {
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
+  nameBranches(graph)
+  const branches = graph.edges.filter(e => e.from === '/listed/choose' && e.to === '/listed/confirm')
+  assert.deepStrictEqual(branches.map(e => e.label), ['“An individual”', '“A trust”'])
+  const confirm = graph.nodes.find(n => n.id === '/listed/confirm')
+  assert.strictEqual(confirm.answerStates.field, 'type')
+  assert.strictEqual(confirm.listedStates.length, 0, 'photographed as answers, not twice')
+})
+
+test('draws each version of a page the answers lead to as its own branch', () => {
+  const { applyFollowed } = require('../lib/follow')
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
+  const shot = name => ({ shot: 'data:' + name, thumb: 'data:' + name, status: 200 })
+  const confirm = graph.nodes.find(n => n.id === '/listed/confirm')
+  confirm.states = [{ kind: 'error', query: '?type=trust&error=required', messages: ['Select yes'] }]
+  applyFollowed(graph, {
+    versions: [
+      { key: '/listed/choose', page: '/listed/choose', answers: {}, ...shot('choose') },
+      { key: '/listed/confirm?type=personal', page: '/listed/confirm', answers: { type: 'personal' }, ...shot('personal') },
+      { key: '/listed/confirm?type=trust', page: '/listed/confirm', answers: { type: 'trust' }, ...shot('trust') },
+      { key: '/listed/check?type=personal', page: '/listed/check', answers: { type: 'personal' }, ...shot('check') },
+      { key: '/listed/check?type=trust', page: '/listed/check', answers: { type: 'trust' }, ...shot('check') }
+    ],
+    steps: [
+      { from: '/listed/choose', to: '/listed/confirm?type=personal', kind: 'submit', field: 'type', value: 'personal' },
+      { from: '/listed/choose', to: '/listed/confirm?type=trust', kind: 'submit', field: 'type', value: 'trust' },
+      { from: '/listed/confirm?type=personal', to: '/listed/check?type=personal', kind: 'submit', field: 'confirm', value: 'true' },
+      { from: '/listed/confirm?type=trust', to: '/listed/check?type=trust', kind: 'submit', field: 'confirm', value: 'true' },
+      { from: '/listed/confirm?type=trust', to: '/listed/choose', kind: 'submit', field: 'confirm', value: 'false' }
+    ]
+  })
+  const ids = graph.nodes.map(n => n.id)
+  assert.ok(ids.includes('/listed/confirm') && ids.includes('/listed/confirm?type=trust'))
+  const out = graph.edges.filter(e => e.from === '/listed/choose' && !e.return).map(e => e.to + ' ' + e.rule)
+  assert.deepStrictEqual(out.sort(), ["/listed/confirm type = 'personal'", "/listed/confirm?type=trust type = 'trust'"])
+  // Each version has its own screenshot and the error photographed with its answers
+  const trust = graph.nodes.find(n => n.id === '/listed/confirm?type=trust')
+  assert.strictEqual(trust.shot, 'data:trust')
+  assert.strictEqual(trust.url, '/listed/confirm?type=trust')
+  assert.strictEqual(trust.states.length, 1)
+  // "No" goes back to the start: a line back, not another version
+  assert.strictEqual(graph.edges.find(e => e.from === '/listed/confirm?type=trust' && e.to === '/listed/choose').return, true)
+  assert.strictEqual(graph.meta.mainEntry, '/listed/choose')
+  assert.ok(graph.nodes.find(n => n.id === '/listed/choose').entry)
+})
+
+test('gives each version its own errors, and leaves out listed versions that are the same screen', () => {
+  const { applyFollowed } = require('../lib/follow')
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
+  const confirm = graph.nodes.find(n => n.id === '/listed/confirm')
+  confirm.states = [
+    { kind: 'variant', listed: true, label: 'A trust', query: '?type=trust' },
+    { kind: 'error', query: '?type=trust&error=required', messages: ['Select yes'] }
+  ]
+  const error = answer => ({ kind: 'error', query: '?error=required&type=' + answer, messages: ['Select yes for ' + answer] })
+  applyFollowed(graph, {
+    versions: [
+      { key: '/listed/choose', page: '/listed/choose', answers: {}, shot: 'c' },
+      { key: '/listed/confirm?type=personal', page: '/listed/confirm', answers: { type: 'personal' }, shot: 'p', states: [error('personal')], triedErrors: true },
+      { key: '/listed/confirm?type=trust', page: '/listed/confirm', answers: { type: 'trust' }, shot: 't', states: [error('trust')], triedErrors: true }
+    ],
+    steps: [
+      { from: '/listed/choose', to: '/listed/confirm?type=personal', kind: 'submit', field: 'type', value: 'personal' },
+      { from: '/listed/choose', to: '/listed/confirm?type=trust', kind: 'submit', field: 'type', value: 'trust' }
+    ]
+  })
+  const states = id => graph.nodes.find(n => n.id === id).states.map(st => st.messages ? st.messages[0] : st.label)
+  assert.deepStrictEqual(states('/listed/confirm'), ['Select yes for personal'])
+  assert.deepStrictEqual(states('/listed/confirm?type=trust'), ['Select yes for trust'])
+})
+
+test('puts a version the answers never reach with the most alike version', () => {
+  const { applyFollowed } = require('../lib/follow')
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
+  graph.nodes.find(n => n.id === '/listed/confirm').states = [
+    { kind: 'variant', listed: true, label: 'Outside the UK', query: '?type=HMRC-CBC-NONUK-ORG' }
+  ]
+  applyFollowed(graph, {
+    versions: [
+      { key: '/listed/choose', page: '/listed/choose', answers: {}, shot: 'c' },
+      { key: '/listed/confirm?type=HMRC-MTD-IT', page: '/listed/confirm', answers: { type: 'HMRC-MTD-IT' }, shot: 'a' },
+      { key: '/listed/confirm?type=HMRC-CBC-ORG', page: '/listed/confirm', answers: { type: 'HMRC-CBC-ORG' }, shot: 'b' }
+    ],
+    steps: [
+      { from: '/listed/choose', to: '/listed/confirm?type=HMRC-MTD-IT', kind: 'submit', field: 'type', value: 'HMRC-MTD-IT' },
+      { from: '/listed/choose', to: '/listed/confirm?type=HMRC-CBC-ORG', kind: 'submit', field: 'type', value: 'HMRC-CBC-ORG' }
+    ]
+  })
+  assert.strictEqual(graph.nodes.find(n => n.id === '/listed/confirm?type=HMRC-CBC-ORG').states.length, 1)
+  assert.strictEqual(graph.nodes.find(n => n.id === '/listed/confirm').states.length, 0)
+})
+
+test('joins branches again where every screen from there on is the same', () => {
+  const { applyFollowed } = require('../lib/follow')
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
+  const v = (page, type, shot) => ({ key: '/listed/' + page + (type ? '?type=' + type : ''), page: '/listed/' + page, answers: type ? { type } : {}, shot })
+  applyFollowed(graph, {
+    versions: [
+      v('choose', '', 'c'),
+      v('confirm', 'personal', 'confirm for a person'),
+      v('confirm', 'trust', 'confirm for a trust'),
+      v('check', 'personal', 'check'),
+      v('check', 'trust', 'check'),
+      v('done', 'personal', 'done'),
+      v('done', 'trust', 'done')
+    ],
+    steps: [
+      { from: '/listed/choose', to: '/listed/confirm?type=personal', kind: 'submit', field: 'type', value: 'personal' },
+      { from: '/listed/choose', to: '/listed/confirm?type=trust', kind: 'submit', field: 'type', value: 'trust' },
+      { from: '/listed/confirm?type=personal', to: '/listed/check?type=personal', kind: 'submit', field: 'confirm', value: 'true' },
+      { from: '/listed/confirm?type=trust', to: '/listed/check?type=trust', kind: 'submit', field: 'confirm', value: 'true' },
+      { from: '/listed/check?type=personal', to: '/listed/done?type=personal', kind: 'link' },
+      { from: '/listed/check?type=trust', to: '/listed/done?type=trust', kind: 'link' }
+    ]
+  })
+  const versions = page => graph.nodes.filter(n => n.id.startsWith('/listed/' + page)).length
+  assert.strictEqual(versions('confirm'), 2, 'the screens that differ stay apart')
+  assert.strictEqual(versions('check'), 1, 'both branches join at the shared “Check your answers”')
+  assert.strictEqual(versions('done'), 1)
+  const intoCheck = graph.edges.filter(e => e.to === '/listed/check' && !e.return)
+  assert.deepStrictEqual(intoCheck.map(e => e.from).sort(), ['/listed/confirm', '/listed/confirm?type=trust'])
+  // Joined screens keep only the answers every branch shares
+  assert.deepStrictEqual(graph.nodes.find(n => n.id === '/listed/check').answers, {})
+})
+
+test('tells answers that change a page from ones that only pick a record', () => {
+  const { parsePage } = require('../lib/views')
+  const page = parsePage(`
+    {% set type = data.clientType %}
+    {% if type == "trust" %}<p>Trust</p>{% endif %}
+    {% if data["search-by"] != "arn" %}<p>Code</p>{% endif %}
+    {% for item in items %}{% if item.code == data["unmap-agent-code"] %}<p>{{ item.code }}</p>{% endif %}{% endfor %}
+  `, 'page.html')
+  assert.deepStrictEqual(page.choiceFields.sort(), ['clientType', 'search-by'])
+})
+
+test('finds headings set with {% set %} and shown with GOV.UK macros', () => {
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
+  const title = name => graph.nodes.find(n => n.id === '/listed/' + name).title
+  assert.strictEqual(title('choose'), 'What type of client is it?')
+  assert.strictEqual(title('confirm'), 'Is this for …?')
+  assert.strictEqual(title('done'), 'Authorisation cancelled')
+})
+
+test('photographs the states and errors the index page lists for each page', () => {
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
+  const choose = graph.nodes.find(n => n.id === '/listed/choose')
+  assert.deepStrictEqual(choose.listedStates, [
+    { query: '?type=trust', text: 'For a trust' },
+    { query: '?type=trust&error=required', text: 'Select yes if this is right' }
+  ])
+})
+
 test('--start narrows the map to what is reachable from that page', () => {
   const graph = buildGraph({ root, scopeDir, start: 'address' })
   const names = graph.nodes.map(n => short(n.id)).sort()
@@ -213,6 +383,31 @@ test('lays out every state and error beside its page for the Mural export', asyn
     assert.strictEqual(box.card.picture, 550)
     assert.strictEqual(graph.layouts[dir + ':full'].nodes[page.id].card.picture, 550)
   }
+})
+
+test('says what makes each error show, for the Mural export', () => {
+  const { errorTrigger } = require('../lib/layout')
+  assert.strictEqual(errorTrigger({ query: '?clientType=personal&error=required' }), 'Nothing entered')
+  assert.strictEqual(errorTrigger({ query: '?error=invalid' }), 'Entered in the wrong format')
+  assert.strictEqual(errorTrigger({ query: '?error=month-year-required' }), 'Date entered with no month or year')
+  assert.strictEqual(errorTrigger({ query: '?error=too-long' }), 'Too long')
+  // Errors the tool made by typing into the form say what it typed
+  assert.strictEqual(errorTrigger({ label: 'Characters that aren’t allowed' }), 'Characters that aren’t allowed')
+  assert.strictEqual(errorTrigger({ query: '?a=b', label: 'Opening the page from the journey’s index page' }), '')
+})
+
+test('lays out branches in the order the options are on the page', async () => {
+  const graph = buildGraph({ root, scopeDir })
+  const from = node(graph, 'where-do-you-live')
+  // The routes check "abroad" before "england"; the page lists England first
+  const branches = graph.edges.filter(e => e.from === from.id && /^where-do-you-live = /.test(e.rule))
+  branches.reverse().forEach(e => { graph.edges.splice(graph.edges.indexOf(e), 1); graph.edges.push(e) })
+  await addLayouts(graph)
+  const target = value => branches.find(e => e.rule.includes(value)).to
+  const down = graph.layouts.DOWN.nodes
+  const right = graph.layouts.RIGHT.nodes
+  assert.ok(down[target('england')].x < down[target('abroad')].x, 'top to bottom: England on the left')
+  assert.ok(right[target('england')].y < right[target('abroad')].y, 'left to right: England at the top')
 })
 
 test('shows the whole file name, wrapped at hyphens when it is long', async () => {

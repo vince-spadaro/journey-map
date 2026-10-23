@@ -1,0 +1,15 @@
+{% extends "layouts/main.html" %}
+{% set pageName = "Is this for " + clientName + "?" %}
+{% block content %}
+<form action="confirm" method="post">
+  {{ govukRadios({
+    name: "confirm",
+    fieldset: { legend: { text: pageName, isPageHeading: true } },
+    items: [
+      { value: "true", text: "Yes - this is right" },
+      { value: "false", text: "No - I need to start again" }
+    ]
+  }) }}
+  {{ govukButton({ text: "Continue" }) }}
+</form>
+{% endblock %}

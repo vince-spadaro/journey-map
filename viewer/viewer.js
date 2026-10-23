@@ -315,7 +315,8 @@
   // A state's screenshot with its name underneath (sizes match lib/layout.js)
   function drawStateCard (n, sc, box, parent) {
     const g = make('g', { class: 'state-card' + (sc.error ? ' state-card-error' : ''), transform: 'translate(' + box.x + ' ' + box.y + ')' }, parent)
-    make('title', null, g, n.title + ': ' + sc.kind + '\n' + sc.lines.join(' '))
+    const triggerLines = sc.triggerLines || []
+    make('title', null, g, n.title + ': ' + sc.kind + '\n' + triggerLines.concat(sc.lines).join(' '))
     make('rect', { class: 'card', width: box.width, height: box.height, rx: 8 }, g)
     const width = box.width - 28
     const clipId = 'clip-' + n.id.replace(/[^a-z0-9]/gi, '-') + '-' + sc.index
@@ -334,7 +335,9 @@
     make('rect', { class: 'thumb-frame', x: 14, y: 14, width, height, rx: 4 }, g)
     const top = 14 + height + 18
     make('text', { class: 'kind', x: 14, y: top }, g, sc.kind.toUpperCase())
-    sc.lines.forEach((line, i) => make('text', { class: 'state-text', x: 14, y: top + 18 + i * 17 }, g, line))
+    // What makes an error show, in bold, then the message (sizes match lib/layout.js)
+    triggerLines.forEach((line, i) => make('text', { class: 'state-text state-trigger', x: 14, y: top + 18 + i * 17 }, g, line))
+    sc.lines.forEach((line, i) => make('text', { class: 'state-text', x: 14, y: top + 18 + (triggerLines.length + i) * 17 }, g, line))
   }
 
   // ---------------------------------------------------------------- text
@@ -402,7 +405,8 @@
           others.map(({ st, index }) => h('li', null,
             stateButton(n, index, stateLabel(st)),
             h('span', { class: 'panel__how' },
-              st.kind === 'variant' ? 'After the link “' + st.label + '” (' + st.query + ')'
+              st.listed ? 'Listed on the journey’s index page'
+                : st.kind === 'variant' ? 'After the link “' + st.label + '” (' + st.query + ')'
                 : st.kind === 'answer' ? 'After choosing “' + st.label + '”' + (st.question ? ' for “' + st.question + '”' : '')
                   : 'When this option is chosen')
           ))
@@ -526,6 +530,11 @@
       h('p', { class: 'panel__kind' }, KIND_LABEL[n.type] + (n.entry ? ' · Start' : '')),
       h('h2', null, n.title),
       n.heading && n.heading !== n.title ? h('p', { class: 'panel__heading' }, n.heading) : null,
+      // This version of the page, after these answers
+      (n.answersInWords || []).length ? h('div', { class: 'panel__answers' },
+        h('p', { class: 'panel__states-group' }, 'After these answers'),
+        h('ul', null, n.answersInWords.map(a => h('li', null, h('strong', null, a.answer), h('span', { class: 'panel__how' }, a.question))))
+      ) : null,
       h('p', { class: 'panel__url' }, h('code', null, n.url)),
       h('div', { class: 'panel__actions' },
         n.type !== 'missing' ? h('a', { href: prototypeUrl, target: '_blank', rel: 'noopener' }, 'Open in prototype ↗') : null,
@@ -802,11 +811,37 @@
 
   // How a state is named in tabs and lists
   function stateLabel (st) {
+    if (st.listed) return st.label
     if (st.kind === 'variant' || st.kind === 'answer') return 'After “' + st.label + '”'
     if (st.kind === 'error') {
       return 'Error: ' + st.messages[0] + (st.messages.length > 1 ? ' (+' + (st.messages.length - 1) + ' more)' : '')
     }
     return st.label + (st.type === 'checkbox' ? ' ticked' : ' selected')
+  }
+
+  // What makes an error show, in words: from the page's address, like
+  // ?error=required, or what the tool typed when it tried the form itself
+  const DATE_PARTS = ['day', 'month', 'year']
+  function errorTrigger (st) {
+    const value = st.query ? new URLSearchParams(st.query.replace(/^\?/, '')).get('error') : null
+    if (!value) return /index page/.test(st.label || '') ? '' : st.label || ''
+    if (value === 'required') return 'Nothing entered'
+    if (value === 'invalid') return 'Entered in the wrong format'
+    const missing = value.match(/^([a-z-]+)-required$/)
+    if (missing) {
+      const parts = missing[1].split('-')
+      if (parts.every(p => DATE_PARTS.includes(p))) return 'Date entered with no ' + parts.join(' or ')
+      return 'Nothing entered for ' + parts.join(' ')
+    }
+    const words = value.replace(/[-_]+/g, ' ').trim()
+    return words.charAt(0).toUpperCase() + words.slice(1)
+  }
+
+  // Full-screen tabs say what makes each error show, so a message can be
+  // checked against it: "Nothing entered: Enter your client’s …"
+  function screenTabLabel (st) {
+    const trigger = st.kind === 'error' ? errorTrigger(st) : ''
+    return trigger ? trigger + ': ' + st.messages[0] + (st.messages.length > 1 ? ' (+' + (st.messages.length - 1) + ' more)' : '') : stateLabel(st)
   }
 
   const openingLabel = n => n.sameAsAnswer ? 'As it opens, and after “' + n.sameAsAnswer + '”' : 'As it opens'
@@ -816,7 +851,7 @@
     const n = nodesById.get(id)
     if (!n || !n.shot) return
     const states = [{ label: openingLabel(n), shot: n.shot, shotWidth: n.shotWidth, shotHeight: n.shotHeight, cutOff: n.cutOff }]
-      .concat(n.states.map(st => ({ ...st, how: st.label, label: stateLabel(st) })))
+      .concat(n.states.map(st => ({ ...st, how: errorTrigger(st), label: screenTabLabel(st) })))
     const current = Math.min(stateIndex || 0, states.length - 1)
     const view = states[current]
     state.viewing = id
@@ -827,7 +862,7 @@
     const e = n.expanded || {}
     $('#screen-meta').textContent = (n.fileName || n.url) + ' · ' + (index + 1) + ' of ' + screens.length +
       (e.details || e.accordions || e.tabs ? ' · Shown with folded content opened' : '') +
-      (view.kind === 'error' ? ' · Error after: ' + view.how + ' · ' + view.messages.join(' · ') : '') +
+      (view.kind === 'error' ? ' · ' + (view.how ? view.how + ': ' : 'Error: ') + view.messages.join(' · ') : '') +
       (view.cutOff ? ' · Only the top of this long page is shown' : '')
     // The line is cut short to fit: hovering shows all of it
     $('#screen-meta').title = $('#screen-meta').textContent
