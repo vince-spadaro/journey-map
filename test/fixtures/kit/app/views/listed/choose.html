@@ -1,0 +1,17 @@
+{% extends "layouts/main.html" %}
+{% set pageName = "What type of client is it?" %}
+{% block content %}
+<form action="choose" method="post">
+  {# The options come from the routes #}
+  {% set items = [] %}
+  {% for type in clientTypes %}
+    {% set items = (items.push({ value: type.value, text: type.text }), items) %}
+  {% endfor %}
+  {{ govukRadios({
+    name: "type",
+    fieldset: { legend: { text: pageName, isPageHeading: true } },
+    items: items
+  }) }}
+  {{ govukButton({ text: "Continue" }) }}
+</form>
+{% endblock %}

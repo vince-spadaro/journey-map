@@ -31,6 +31,7 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 .state-card .card { fill: #f8f8f8; stroke: #b1b4b6; stroke-width: 1.5; }
 .state-card .kind { fill: #4c2c68; }
 .state-card .state-text { font-size: 13px; fill: #0b0c0c; }
+.state-card .state-trigger { font-weight: 700; }
 .state-card-error .card { fill: #fdf4f2; stroke: #d4351c; }
 .state-card-error .kind { fill: #942514; }
 

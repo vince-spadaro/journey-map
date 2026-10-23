@@ -171,6 +171,10 @@ input[type="search"] {
 .screen__state--error { border-color: #e5a69c; color: #942514; }
 .screen__state--error[aria-pressed="true"] { background: #f6d7d2; border-color: #942514; color: #942514; }
 .panel__states li { padding: 3px 0; border: 0; }
+.panel__answers { margin: 4px 0 12px; }
+.panel__answers ul { margin: 0; padding: 0; list-style: none; }
+.panel__answers li { padding: 4px 0; border: 0; }
+.panel__answers strong { display: block; }
 .screen__body { flex: 1; overflow: auto; background: #f3f2f1; padding: 16px; }
 .screen__body img { display: block; margin: 0 auto; max-width: 100%; height: auto; image-rendering: auto; background: #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, .15); }
 
