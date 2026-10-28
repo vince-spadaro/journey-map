@@ -228,6 +228,7 @@ To share names with your team, keep the file somewhere you all use, like a share
   - **See all notes** lists every note in the side panel.
 - **Export** saves the map as an SVG for Mural. Screenshots are shown whole, however long the page, sharp enough to read when you zoom in, and the key is on the right with the journey's name and the date the map was made.
 - **SVG for Mural with all states** saves the map with every state and error of each page next to it, each with its name, so a whole review fits on one Mural board. Errors have a red border, and say what makes them show (like "Nothing entered") above the message, as in the full-screen view. It's in the Export menu on maps with screenshots of other states or errors (make the map again if you don't see it).
+- **Choose screens to export**, in the Export menu, lets you leave screens, states and errors out of both SVGs. The map shows every state and error next to its page, with a tick box on each one, all ticked to start with. Click a screen, state or error to untick it (it fades), and click again to put it back. Tags count only what's ticked. Click **Done** when you've finished, then export. The export closes up the gaps, and lines to and from a screen you left out go too. Your choice is kept for that map in your browser.
 
 ## Reviewing in a call
 

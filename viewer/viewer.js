@@ -9,6 +9,7 @@
   const $ = selector => document.querySelector(selector)
 
   const nodesById = new Map(data.nodes.map(n => [n.id, n]))
+  const edgesById = new Map(data.edges.map(e => [e.id, e]))
   const outgoing = new Map(data.nodes.map(n => [n.id, []]))
   const incoming = new Map(data.nodes.map(n => [n.id, []]))
   data.edges.forEach(e => { outgoing.get(e.from).push(e); incoming.get(e.to).push(e) })
@@ -42,16 +43,28 @@
     matchIndex: -1,
     view: { x: 0, y: 0, k: 1 },
     // Only while a Mural export draws the map to save it: which layout
-    // ('full' or 'states') and the screenshots to put in it
-    exporting: null
+    // ('full' or 'states') and the screenshots to put in it, and when screens
+    // are left out, the pages and lines kept and where they go
+    exporting: null,
+    // Choosing screens to export: the map is shown as the export will be,
+    // with every state, and a tick box on each screen
+    choosing: false
   }
 
   function currentLayout () {
     const thumbs = data.layouts[state.dir + (hasShots && state.thumbs ? ':thumbs' : '')]
+    if (state.exporting && state.exporting.positions) return state.exporting.positions
     // Maps made before whole screenshots were exported keep their thumbnails' shape
     if (state.exporting) return data.layouts[state.dir + ':' + state.exporting.layout] || thumbs
+    if (state.choosing) return (hasShots && (data.layouts[state.dir + ':states'] || data.layouts[state.dir + ':full'])) || data.layouts[state.dir]
     return thumbs
   }
+
+  // Tick boxes show while choosing, but never in an export
+  const choosing = () => state.choosing && !state.exporting
+
+  // What's drawn: the whole map, or while exporting, the screens kept
+  const drawn = () => state.exporting && state.exporting.nodes ? state.exporting : data
 
   const KIND_LABEL = { page: 'Page', decision: 'Decision made in code', exit: 'Outside this journey', missing: 'Page not found' }
 
@@ -186,13 +199,14 @@
 
   function draw () {
     const layout = currentLayout()
+    const { nodes, edges } = drawn()
     Object.values(layers).forEach(layer => layer.replaceChildren())
     const lanes = {}
     // Pages and branch labels that return link labels must not cover
     const taken = Object.values(layout.nodes).map(b => ({ x: b.x, y: b.y, width: b.width, height: b.height }))
       .concat(Object.values(layout.edges).filter(g => g.label).map(g => ({ ...g.label })))
 
-    for (const e of data.edges) {
+    for (const e of edges) {
       const outside = isOutside(nodesById.get(e.to)) || isOutside(nodesById.get(e.from))
       if (e.return) {
         const from = layout.nodes[e.from]
@@ -203,14 +217,14 @@
         const curve = returnPath(from, to, lanes[pair])
         const path = make('path', {
           d: curve.d,
-          class: 'edge edge-return' + (outside ? ' is-outside' : ''),
+          class: 'edge edge-return' + (outside ? ' is-outside' : '') + leftOutClass(e),
           'data-edge': e.id,
           'marker-end': 'url(#arrow-return)'
         }, layers.returns)
         make('title', null, path, describeEdge(e) + ': ' + titleOf(e.from) + ' → ' + titleOf(e.to))
         const words = linkWords(e)
         const spot = placeLabel(curve, Math.round(words.length * 6.5 + 16), taken)
-        const g = make('g', { class: 'label label-return' + (outside ? ' is-outside' : ''), 'data-edge': e.id }, layers.returns)
+        const g = make('g', { class: 'label label-return' + (outside ? ' is-outside' : '') + leftOutClass(e), 'data-edge': e.id }, layers.returns)
         make('title', null, g, describeEdge(e) + ': ' + titleOf(e.from) + ' → ' + titleOf(e.to))
         make('rect', { x: spot.x, y: spot.y, width: spot.width, height: 20, rx: 10 }, g)
         make('text', { x: spot.cx, y: spot.cy + 4, 'text-anchor': 'middle' }, g, words)
@@ -220,27 +234,29 @@
       if (!geo) continue
       const path = make('path', {
         d: roundedPath(geo.points, 10),
-        class: 'edge edge-' + e.kind + (outside ? ' is-outside' : ''),
+        class: 'edge edge-' + e.kind + (outside ? ' is-outside' : '') + leftOutClass(e),
         'data-edge': e.id,
         'marker-end': e.kind === 'link' ? 'url(#arrow-link)' : 'url(#arrow-flow)'
       }, layers.edges)
       make('title', null, path, describeEdge(e) + ': ' + titleOf(e.from) + ' → ' + titleOf(e.to))
 
       if (e.label && geo.label) {
-        const g = make('g', { class: 'label' + (outside ? ' is-outside' : ''), 'data-edge': e.id }, layers.labels)
+        const g = make('g', { class: 'label' + (outside ? ' is-outside' : '') + leftOutClass(e), 'data-edge': e.id }, layers.labels)
         make('title', null, g, e.label + (e.code && e.code !== 'otherwise' ? '\n' + e.code : ''))
         make('rect', { x: geo.label.x, y: geo.label.y, width: geo.label.width, height: geo.label.height, rx: 4 }, g)
         make('text', { x: geo.label.x + geo.label.width / 2, y: geo.label.y + 14, 'text-anchor': 'middle' }, g, e.shortLabel)
       }
     }
 
-    for (const n of data.nodes) {
+    for (const n of nodes) {
       const box = layout.nodes[n.id]
       if (box) drawNode(n, box)
     }
     updateThumbQuality(true)
     applyHighlights()
   }
+
+  const leftOutClass = e => choosing() && (leftOut.has(e.from) || leftOut.has(e.to)) ? ' is-left-out' : ''
 
   const THUMB_HEIGHT = 165
 
@@ -252,7 +268,7 @@
     if (n.thumb) {
       make('image', {
         class: 'thumb',
-        href: n.thumb,
+        href: state.choosing && n.shot ? n.shot : n.thumb,
         x: 14,
         y: 14,
         width,
@@ -271,6 +287,7 @@
     const classes = ['node', 'node-' + n.type]
     if (n.entry) classes.push('is-entry')
     if (isOutside(n)) classes.push('is-outside')
+    if (choosing() && leftOut.has(n.id)) classes.push('is-left-out')
 
     const g = make('g', {
       class: classes.join(' '),
@@ -287,8 +304,8 @@
     make('rect', { class: 'card', width: card.width, height: card.height, rx: 8 }, g)
 
     if (n.type === 'page') {
-      const picture = state.exporting && card.picture ? card.picture : THUMB_HEIGHT
-      const shift = hasShots && (state.thumbs || state.exporting) ? picture + 10 : 0
+      const picture = (state.exporting || state.choosing) && card.picture ? card.picture : THUMB_HEIGHT
+      const shift = hasShots && (state.exporting ? state.exporting.layout : state.choosing || state.thumbs) ? picture + 10 : 0
       if (shift) drawThumb(n, g, card, picture)
       n.lines.forEach((line, i) => make('text', { class: 'title', x: 14, y: shift + 30 + i * 19 }, g, line))
       const top = shift + 16 + n.lines.length * 19 + 4
@@ -296,13 +313,16 @@
       n.fileLines.forEach((line, i) => make('text', { class: 'file', x: 14, y: top + 11 + i * 13 }, g, line))
       const badgeTop = top + 3 + Math.max(1, n.fileLines.length) * 13 + 6
       let x = 14
-      n.badges.forEach(badge => {
+      // While choosing, tags count only the states and errors ticked
+      const badges = choosing() ? keptCopy(n).badges : n.badges
+      badges.forEach(badge => {
         make('rect', { class: 'badge badge-' + badge.kind, x, y: badgeTop, width: badge.width, height: 20, rx: 10 }, g)
         make('text', { class: 'badge-text badge-text-' + badge.kind, x: x + badge.width / 2, y: badgeTop + 14, 'text-anchor': 'middle' }, g, badge.text)
         x += badge.width + 6
       })
       drawNoteFlag(g, n, card)
       if (box.cards) n.stateCards.forEach((sc, i) => drawStateCard(n, sc, box.cards[i], g))
+      if (choosing()) drawCheck(g, n.id, n.title)
     } else if (n.type === 'decision') {
       make('text', { class: 'kind', x: 14, y: 23 }, g, '◆ DECISION IN CODE')
       n.lines.forEach((line, i) => make('text', { class: 'title', x: 14, y: 41 + i * 18 }, g, line))
@@ -310,11 +330,26 @@
       make('text', { class: 'kind', x: 12, y: 20 }, g, n.type === 'missing' ? '✕ PAGE NOT FOUND' : '↗ OUTSIDE THIS JOURNEY')
       n.lines.forEach((line, i) => make('text', { class: 'title', x: 12, y: 36 + i * 17 }, g, line))
     }
+    return g
+  }
+
+  // A tick box on the corner of a screen, state or error while choosing what to export
+  function drawCheck (g, key, name) {
+    const kept = !leftOut.has(key)
+    const box = make('g', { class: 'export-check', 'data-key': key, transform: 'translate(-11 -11)', tabindex: '0', role: 'checkbox', 'aria-checked': String(kept), 'aria-label': 'Export ' + name }, g)
+    make('title', null, box, kept ? 'In the export. Click to leave it out.' : 'Left out of the export. Click to put it back.')
+    make('rect', { width: 26, height: 26, rx: 5 }, box)
+    if (kept) make('path', { d: 'M7 13.5 L11.5 18 L19.5 8.5' }, box)
   }
 
   // A state's screenshot with its name underneath (sizes match lib/layout.js)
   function drawStateCard (n, sc, box, parent) {
-    const g = make('g', { class: 'state-card' + (sc.error ? ' state-card-error' : ''), transform: 'translate(' + box.x + ' ' + box.y + ')' }, parent)
+    const key = n.id + '#' + sc.index
+    const g = make('g', {
+      class: 'state-card' + (sc.error ? ' state-card-error' : '') + (choosing() && leftOut.has(key) ? ' is-left-out' : ''),
+      transform: 'translate(' + box.x + ' ' + box.y + ')',
+      'data-key': key
+    }, parent)
     const triggerLines = sc.triggerLines || []
     make('title', null, g, n.title + ': ' + sc.kind + '\n' + triggerLines.concat(sc.lines).join(' '))
     make('rect', { class: 'card', width: box.width, height: box.height, rx: 8 }, g)
@@ -324,7 +359,7 @@
     make('rect', { x: 14, y: 14, width, height, rx: 4 }, make('clipPath', { id: clipId }, g))
     make('image', {
       class: 'state-thumb',
-      href: state.exporting.pictures.get(n.id + '#' + sc.index),
+      href: state.exporting ? state.exporting.pictures.get(key) : n.states[sc.index - 1].shot,
       x: 14,
       y: 14,
       width,
@@ -338,6 +373,7 @@
     // What makes an error show, in bold, then the message (sizes match lib/layout.js)
     triggerLines.forEach((line, i) => make('text', { class: 'state-text state-trigger', x: 14, y: top + 18 + i * 17 }, g, line))
     sc.lines.forEach((line, i) => make('text', { class: 'state-text', x: 14, y: top + 18 + (triggerLines.length + i) * 17 }, g, line))
+    if (choosing()) drawCheck(g, key, n.title + ', ' + sc.kind)
   }
 
   // ---------------------------------------------------------------- text
@@ -601,7 +637,7 @@
     state.sharp = sharp
     layers.nodes.querySelectorAll('image.thumb').forEach(img => {
       const n = nodesById.get(img.closest('.node').getAttribute('data-id'))
-      img.setAttribute('href', sharp && n.shot ? n.shot : n.thumb)
+      img.setAttribute('href', (sharp || state.choosing) && n.shot ? n.shot : n.thumb)
     })
   }
 
@@ -726,12 +762,23 @@
   svg.addEventListener('pointercancel', endDrag)
   svg.addEventListener('click', event => {
     if (suppressClick) { suppressClick = false; return }
+    if (state.choosing) {
+      // A click anywhere on a screen, state or error ticks or unticks it
+      const target = event.target.closest('.export-check, .state-card, .node')
+      if (target) toggleLeftOut(target.getAttribute('data-key') || target.getAttribute('data-id'))
+      return
+    }
     const node = event.target.closest('.node')
     if (node) select(node.getAttribute('data-id'))
     else clearSelection()
   })
   svg.addEventListener('keydown', event => {
     const node = event.target.closest && event.target.closest('.node')
+    if (state.choosing && (event.key === 'Enter' || event.key === ' ')) {
+      const check = event.target.closest('.export-check')
+      if (check || node) { event.preventDefault(); toggleLeftOut(check ? check.getAttribute('data-key') : node.getAttribute('data-id')) }
+      return
+    }
     if (node && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault()
       select(node.getAttribute('data-id'))
@@ -769,7 +816,7 @@
       if (event.key === 'Escape') event.target.blur()
       return
     }
-    if (event.key === 'Escape') clearSelection()
+    if (event.key === 'Escape') state.choosing ? stopChoosing() : clearSelection()
     else if (event.key === '+' || event.key === '=') zoomCentre(1.25)
     else if (event.key === '-') zoomCentre(0.8)
     else if (event.key === '0' || event.key === 'f') fit()
@@ -1274,9 +1321,23 @@
     if (!btn) return
     closeMenu()
     const kind = btn.dataset.export
-    if (kind === 'svg') exportSvg()
-    else if (kind === 'svg-states') exportWithStates()
+    if (kind === 'svg') busy(exportSvg)
+    else if (kind === 'svg-states') busy(exportWithStates)
+    else if (kind === 'choose') startChoosing()
   })
+
+  // Laying the map out again can take a few seconds on a big journey
+  async function busy (work) {
+    const label = exportBtn.textContent
+    exportBtn.textContent = 'Exporting…'
+    exportBtn.disabled = true
+    try {
+      await work()
+    } finally {
+      exportBtn.textContent = label
+      exportBtn.disabled = false
+    }
+  }
 
   function fileName (ext) {
     return data.meta.slug + '-journey-map-' + madeStamp() + '.' + ext
@@ -1295,7 +1356,7 @@
     const clone = svg.cloneNode(true)
     const key = drawKey(map.x + map.width, map.y + 24)
     const box = { x: map.x, y: map.y, width: map.width + key.width + 24, height: Math.max(map.height, key.height + 48) }
-    clone.classList.remove('has-selection', 'is-searching', 'is-panning')
+    clone.classList.remove('has-selection', 'is-searching', 'is-panning', 'is-choosing')
     clone.querySelector('#viewport').removeAttribute('transform')
     clone.setAttribute('viewBox', [box.x, box.y, box.width, box.height].join(' '))
     clone.setAttribute('width', Math.ceil(box.width))
@@ -1339,15 +1400,17 @@
     })
   }
 
-  async function pagePictures () {
+  async function pagePictures (nodes) {
     const pictures = new Map()
-    for (const n of data.nodes) if (n.shot) pictures.set(n.id, await sharpPicture(n.shot))
+    for (const n of nodes) if (n.shot) pictures.set(n.id, await sharpPicture(n.shot))
     return pictures
   }
 
-  // Draws the map again in the export's layout just long enough to save it
-  function saveDrawnAs (layout, pictures, name) {
-    state.exporting = { layout, pictures }
+  // Draws the map again in the export's layout just long enough to save it.
+  // `kept` has the pages and lines kept, and where they go, when screens
+  // are left out.
+  function saveDrawnAs (layout, pictures, name, kept) {
+    state.exporting = { layout, pictures, ...kept }
     try {
       draw()
       download(new Blob([svgString(pictures)], { type: 'image/svg+xml' }), name)
@@ -1359,21 +1422,141 @@
 
   // The map as it is on screen, with whole screenshots when they're showing
   async function exportSvg () {
-    if (!hasShots || !state.thumbs) {
+    const whole = hasShots && state.thumbs
+    const kept = await keptScreens(whole ? 'full' : false)
+    if (!whole && !kept) {
       download(new Blob([svgString(new Map())], { type: 'image/svg+xml' }), fileName('svg'))
       return
     }
-    saveDrawnAs('full', await pagePictures(), fileName('svg'))
+    const nodes = kept ? kept.nodes : data.nodes
+    saveDrawnAs(whole ? 'full' : null, whole ? await pagePictures(nodes) : new Map(), fileName('svg'), kept)
   }
 
   // The map with every state and error beside its page
   async function exportWithStates () {
-    const pictures = await pagePictures()
-    for (const n of data.nodes) {
+    const kept = await keptScreens('states')
+    const nodes = kept ? kept.nodes : data.nodes
+    const pictures = await pagePictures(nodes)
+    for (const n of nodes) {
       for (const sc of n.stateCards || []) pictures.set(n.id + '#' + sc.index, await sharpPicture(n.states[sc.index - 1].shot))
     }
-    saveDrawnAs('states', pictures, data.meta.slug + '-journey-map-all-states-' + madeStamp() + '.svg')
+    saveDrawnAs('states', pictures, data.meta.slug + '-journey-map-all-states-' + madeStamp() + '.svg', kept)
   }
+
+  // ---------------------------------------------------------------- screens to export
+
+  // Screens, states and errors left out of the Mural exports: page ids, and
+  // `<page id>#<state number>` as for notes. Kept per map, like notes.
+  const LEAVE_OUT_KEY = 'journey-map:leave-out:' + data.meta.scopeUrl + (data.meta.createdAt ? ':' + data.meta.createdAt : '')
+  const leftOut = new Set()
+  try {
+    const saved = JSON.parse(localStorage.getItem(LEAVE_OUT_KEY) || '[]')
+    if (Array.isArray(saved)) saved.forEach(key => leftOut.add(key))
+  } catch (err) {}
+
+  function saveLeftOut () {
+    try {
+      if (leftOut.size) localStorage.setItem(LEAVE_OUT_KEY, JSON.stringify([...leftOut]))
+      else localStorage.removeItem(LEAVE_OUT_KEY)
+    } catch (err) {}
+  }
+
+  // A page as the export has it: only the states and errors kept, with its
+  // tags counted again
+  function keptCopy (n) {
+    const layout = window.journeyLayout
+    const all = n.states || []
+    const out = (st, i) => leftOut.has(n.id + '#' + (i + 1))
+    // Each page's size, as in the map's layout without screenshots
+    const { width, height } = data.layouts.DOWN.nodes[n.id]
+    if (!layout || n.type !== 'page' || !all.some(out)) return { ...n, width, height }
+    const copy = { ...n, states: all.filter((st, i) => !out(st, i)) }
+    // Errors the routes have but that weren't photographed only count while every error is kept
+    if (all.some((st, i) => st.kind === 'error' && out(st, i))) copy.errorStates = []
+    layout.measure(copy)
+    copy.stateCards = hasShots ? layout.stateCardsFor(copy) : []
+    return copy
+  }
+
+  // The map made again with the code that made it (lib/layout.js, put in
+  // the file with ELK), without the screens left out, so lines close up and
+  // tags count only what's kept. Nothing when every screen is kept, or the
+  // map is too old to have that code.
+  async function keptScreens (pictures) {
+    const layout = window.journeyLayout
+    if (!layout || !leftOut.size) return null
+    const nodes = data.nodes.filter(n => !leftOut.has(n.id)).map(keptCopy)
+    const ids = new Set(nodes.map(n => n.id))
+    const edges = data.edges.filter(e => ids.has(e.from) && ids.has(e.to))
+    const positions = await layout.layoutOne({ nodes, edges }, state.dir, pictures)
+    return { nodes, edges, positions }
+  }
+
+  const chooseBar = $('#choose-bar')
+  $('#export-choose').hidden = !window.journeyLayout
+
+  function startChoosing () {
+    if (state.viewing) closeScreen()
+    clearSelection()
+    state.choosing = true
+    chooseBar.hidden = false
+    svg.classList.add('is-choosing')
+    draw()
+    initialView()
+  }
+
+  function stopChoosing () {
+    state.choosing = false
+    chooseBar.hidden = true
+    svg.classList.remove('is-choosing')
+    draw()
+    initialView()
+  }
+
+  // Draws only the page again, so the map doesn't jump, then greys its lines
+  function toggleLeftOut (key) {
+    if (leftOut.has(key)) leftOut.delete(key)
+    else leftOut.add(key)
+    saveLeftOut()
+    updateChooseCount()
+    const id = key.includes('#') ? key.slice(0, key.lastIndexOf('#')) : key
+    const old = layers.nodes.querySelector('.node[data-id="' + CSS.escape(id) + '"]')
+    const box = currentLayout().nodes[id]
+    if (old && box) {
+      old.replaceWith(drawNode(nodesById.get(id), box))
+      updateThumbQuality(true)
+    }
+    svg.querySelectorAll('[data-edge]').forEach(el => {
+      const e = edgesById.get(el.getAttribute('data-edge'))
+      el.classList.toggle('is-left-out', !!leftOutClass(e))
+    })
+    const check = layers.nodes.querySelector('.export-check[data-key="' + CSS.escape(key) + '"]')
+    if (check) check.focus({ preventScroll: true })
+  }
+
+  $('#choose-done').addEventListener('click', stopChoosing)
+  $('#choose-all').addEventListener('click', () => {
+    leftOut.clear()
+    saveLeftOut()
+    updateChooseCount()
+    draw()
+  })
+
+  // "Leaving out 2 screens and 1 error", counting states and errors only on screens kept
+  function updateChooseCount () {
+    const counts = { screen: 0, state: 0, error: 0 }
+    for (const n of pages) {
+      if (leftOut.has(n.id)) { counts.screen++; continue }
+      ;(n.states || []).forEach((st, i) => {
+        if (leftOut.has(n.id + '#' + (i + 1))) counts[st.kind === 'error' ? 'error' : 'state']++
+      })
+    }
+    const parts = Object.entries(counts).filter(([, count]) => count).map(([word, count]) => plural(count, word))
+    const text = parts.length ? 'Leaving out ' + parts.join(', ').replace(/, ([^,]*)$/, ' and $1') : 'All screens'
+    $('#choose-count').textContent = text
+    $('#export-choose-note').textContent = text
+  }
+  updateChooseCount()
 
   // The key for an exported map: the journey's name and date, then a row for
   // each kind of line, card and tag on it, like the key on the map
@@ -1382,9 +1565,11 @@
     const g = make('g', { class: 'key', transform: 'translate(' + (left + 24) + ' ' + top + ')' })
     const showsReturn = svg.classList.contains('show-return')
     const showsOutside = !svg.classList.contains('hide-outside')
-    const pagesWith = kind => data.nodes.some(n => n.badges && n.badges.some(b => b.kind === kind))
+    const { nodes, edges } = drawn()
+    const onMap = whatsOn(nodes, edges)
+    const pagesWith = kind => nodes.some(n => n.badges && n.badges.some(b => b.kind === kind))
     const cards = state.exporting && state.exporting.layout === 'states'
-      ? data.nodes.flatMap(n => n.stateCards || [])
+      ? nodes.flatMap(n => n.stateCards || [])
       : []
     const line = (stroke, strokeWidth, dash) => row => make('line', { x1: 16, y1: row + 1, x2: 64, y2: row + 1, stroke, 'stroke-width': strokeWidth, 'stroke-dasharray': dash }, g)
     const box = (fill, stroke, dash) => row => make('rect', { x: 16, y: row - 8, width: 48, height: 18, rx: 4, fill, stroke, 'stroke-width': 1.5, 'stroke-dasharray': dash }, g)
@@ -1393,7 +1578,7 @@
       make('text', { class: 'badge-text badge-text-' + kind, x: 46, y: row + 5, 'text-anchor': 'middle' }, g, text)
     }
     const rows = [
-      [data.nodes.some(n => n.entry), box('#fff', '#00703c'), 'Start page'],
+      [nodes.some(n => n.entry), box('#fff', '#00703c'), 'Start page'],
       [onMap.flow, line('#505a5f', 2), 'Continue button or redirect'],
       [onMap.link, line('#1d70b8', 1.5), 'Link'],
       [onMap.return && showsReturn, line('#912b88', 1.5, '5 3'), 'Change or return link'],
@@ -1452,15 +1637,18 @@
   legend.addEventListener('toggle', () => store.set('legend', legend.open ? 'open' : 'closed'))
   // The key only explains what's on this map
   const flows = e => e.kind === 'submit' || e.kind === 'redirect'
-  const onMap = {
-    flow: data.edges.some(e => flows(e) && !e.return),
-    link: data.edges.some(e => e.kind === 'link' && !e.return),
-    return: data.edges.some(e => e.return),
-    branch: data.edges.some(e => flows(e) && e.label),
-    decision: data.nodes.some(n => n.type === 'decision'),
-    outside: data.nodes.some(n => n.type === 'exit'),
-    missing: data.nodes.some(n => n.type === 'missing')
+  function whatsOn (nodes, edges) {
+    return {
+      flow: edges.some(e => flows(e) && !e.return),
+      link: edges.some(e => e.kind === 'link' && !e.return),
+      return: edges.some(e => e.return),
+      branch: edges.some(e => flows(e) && e.label),
+      decision: nodes.some(n => n.type === 'decision'),
+      outside: nodes.some(n => n.type === 'exit'),
+      missing: nodes.some(n => n.type === 'missing')
+    }
   }
+  const onMap = whatsOn(data.nodes, data.edges)
   legend.querySelectorAll('[data-show]').forEach(row => { row.hidden = !onMap[row.dataset.show] })
 
   updateShareButton()

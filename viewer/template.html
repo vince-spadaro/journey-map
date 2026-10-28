@@ -34,6 +34,7 @@
       <div class="export__menu" id="export-menu" hidden>
         <button type="button" data-export="svg">SVG for Mural</button>
         <button type="button" data-export="svg-states" id="export-states" hidden>SVG for Mural with all states</button>
+        <button type="button" data-export="choose" id="export-choose" class="export__choose" hidden><strong>Choose screens to export</strong><span id="export-choose-note">All screens</span></button>
       </div>
     </div>
   </div>
@@ -54,6 +55,12 @@
         <g id="nodes"></g>
       </g>
     </svg>
+  </div>
+  <div class="choose-bar" id="choose-bar" role="region" aria-label="Choose screens to export" hidden>
+    <p><strong>Choose screens to export.</strong> Untick screens, states and errors to leave them out of the SVGs for Mural.</p>
+    <span id="choose-count" class="choose-bar__count" aria-live="polite"></span>
+    <button type="button" class="btn" id="choose-all">Tick all</button>
+    <button type="button" class="btn btn--primary" id="choose-done">Done</button>
   </div>
   <aside id="panel" class="panel" hidden aria-live="polite"></aside>
   <div class="zoom" role="group" aria-label="Zoom">
@@ -104,6 +111,7 @@
 </div>
 <script type="application/json" id="journey-notes">{}</script>
 <script type="application/json" id="journey-data">__DATA__</script>
+<script>/*__LAYOUT__*/</script>
 <script>/*__JS__*/</script>
 </body>
 </html>
