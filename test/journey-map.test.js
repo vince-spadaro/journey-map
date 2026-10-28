@@ -385,6 +385,43 @@ test('lays out every state and error beside its page for the Mural export', asyn
   }
 })
 
+test('lets the map lay out an export again without the screens left out', async () => {
+  const vm = require('vm')
+  const graph = buildGraph({ root, scopeDir })
+  graph.meta.screenshots = true
+  const page = node(graph, 'where-do-you-live')
+  page.shot = 'data:image/webp;base64,'
+  page.states = [
+    { kind: 'error', label: 'Continue with nothing chosen', messages: ['Select where you live'], shot: 'data:image/webp;base64,' },
+    { kind: 'error', label: 'Something else', messages: ['Select one option'], shot: 'data:image/webp;base64,' },
+    { kind: 'reveal', label: 'Abroad', type: 'radio', shot: 'data:image/webp;base64,' }
+  ]
+  await addLayouts(graph)
+  assert.deepStrictEqual(page.badges.map(b => b.text), ['2 errors', '2 states'])
+  // The layout code the map carries, run as the browser would (its arrays
+  // are another window's, so they're copied before comparing)
+  const html = renderHtml(graph, { port: 3000, slug: 'apply' })
+  const code = html.split('<script>').find(part => part.includes('window.journeyLayout ='))
+  const window = vm.createContext({ setTimeout, clearTimeout, console })
+  window.window = window
+  vm.runInContext(code.slice(0, code.lastIndexOf('</script>')), window)
+  const layout = window.journeyLayout
+  // Leaving out an error: the tag counts only the one kept
+  const copy = { ...page, states: page.states.slice(1), errorStates: [] }
+  layout.measure(copy)
+  copy.stateCards = layout.stateCardsFor(copy)
+  assert.deepStrictEqual(Array.from(copy.badges, b => b.text), ['1 error', '2 states'])
+  assert.deepStrictEqual(Array.from(copy.stateCards, c => c.kind), ['Error 1', 'State 2'])
+  // Leaving out a page: it and its lines are gone, and the rest is laid out again
+  const gone = node(graph, 'ineligible').id
+  const nodes = graph.nodes.filter(n => n.id !== gone).map(n => n === page ? copy : n)
+  const edges = graph.edges.filter(e => e.from !== gone && e.to !== gone)
+  const result = await layout.layoutOne({ nodes, edges }, 'DOWN', 'states')
+  assert.ok(!result.nodes[gone])
+  assert.strictEqual(result.nodes[page.id].cards.length, 2)
+  assert.strictEqual(Object.keys(result.nodes).length, nodes.length)
+})
+
 test('says what makes each error show, for the Mural export', () => {
   const { errorTrigger } = require('../lib/layout')
   assert.strictEqual(errorTrigger({ query: '?clientType=personal&error=required' }), 'Nothing entered')
