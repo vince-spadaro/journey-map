@@ -22,16 +22,9 @@
     <label class="check"><input type="checkbox" id="show-return"> Change and return links</label>
     <label class="check"><input type="checkbox" id="show-outside" checked> Pages outside this journey</label>
     <div class="export">
-      <button type="button" id="share-btn" class="btn btn--share" aria-expanded="false" aria-haspopup="true">Share</button>
-      <div class="export__menu share__menu" id="share-menu" hidden>
-        <button type="button" data-share="download"><strong>Download map with notes</strong><span>A copy of this map with your notes inside, to send to someone</span></button>
-        <button type="button" data-share="copy"><strong>Copy notes as text</strong><span>To paste into Jira, Confluence, Teams or an email</span></button>
-        <button type="button" data-share="all"><strong id="share-all-label">See all notes</strong><span>Every note, in journey order</span></button>
-      </div>
-    </div>
-    <div class="export">
       <button type="button" id="export-btn" class="btn" aria-expanded="false" aria-haspopup="true">Export</button>
       <div class="export__menu" id="export-menu" hidden>
+        <button type="button" data-export="html" class="export__html"><strong>Interactive map (HTML)</strong><span>To open on any computer, put on Confluence or present from</span></button>
         <button type="button" data-export="svg">SVG for Mural</button>
         <button type="button" data-export="svg-states" id="export-states" hidden>SVG for Mural with all states</button>
         <button type="button" data-export="choose" id="export-choose" class="export__choose" hidden><strong>Choose screens to export</strong><span id="export-choose-note">All screens</span></button>
@@ -105,11 +98,9 @@
     <div class="screen__states" id="screen-states" role="group" aria-label="Page states" hidden></div>
     <div class="screen__main">
       <div class="screen__body" id="screen-body"><img id="screen-img" alt=""></div>
-      <div class="screen__notes" id="screen-notes"></div>
     </div>
   </div>
 </div>
-<script type="application/json" id="journey-notes">{}</script>
 <script type="application/json" id="journey-data">__DATA__</script>
 <script>/*__LAYOUT__*/</script>
 <script>/*__JS__*/</script>

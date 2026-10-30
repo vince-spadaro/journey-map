@@ -2,7 +2,7 @@
 
 Draws a GOV.UK Prototype Kit journey as a map of its pages and branches, so you can review a journey without clicking through every route.
 
-It reads the prototype's code, then takes a screenshot of every page. You don't need to change the prototype or have it running, and it never writes anything into the prototype's folders: maps, notes and names are all kept outside it.
+It reads the prototype's code, then takes a screenshot of every page. You don't need to change the prototype or have it running, and it never writes anything into the prototype's folders: maps and names are both kept outside it.
 
 The map shows:
 
@@ -204,7 +204,7 @@ To share names with your team, keep the file somewhere you all use, like a share
 
 ## Using the map
 
-- **When it was made**: the top of the map shows the date and time the map was made, and the browser tab (and any bookmark of it) shows the date. Downloaded and exported files are named with it too, like `apply-journey-map-2026-10-15-1606.html`, so saved copies sort in the order they were made.
+- **When it was made**: the top of the map shows the date and time the map was made, and the browser tab (and any bookmark of it) shows the date. Exported files are named with it too, like `apply-journey-map-2026-10-15-1606.svg`, so saved copies sort in the order they were made.
 - **Drag** or **scroll** to move around. Hold **⌘** (Mac) or **Ctrl** and scroll to zoom. Press **F** to fit the whole map.
 - **Click a page** to see its screenshot, the external websites it links to (under "Links to N external websites"), where it goes and under which conditions, where it comes from, its error messages, and links to open it in the prototype or in VS Code. The path that leads to it is highlighted.
 - **Full screen** (on the screenshot in the side panel) shows the whole page at a readable size. Use **←** and **→** to step through every screen in journey order, for content reviews. **Fit / 100% / 150% / 200%** (or **+** and **−**) zoom in to read small text. **Open in VS Code** opens the page's template, to fix what you've spotted.
@@ -221,20 +221,14 @@ To share names with your team, keep the file somewhere you all use, like a share
 - **Find a page** searches titles, headings, URLs and file names. Press Enter to jump between matches, or **/** to start searching.
 - **Top to bottom / Left to right** changes the direction of the map. Lines on the map don't cross, so it's easy to scan. A page's branches are in the same order as its options (from left to right when the map runs top to bottom, from top to bottom when it runs left to right) wherever that doesn't make lines cross.
 - **Change and return links** shows the links that go back to earlier pages.
-- **Notes**: every screen has a Notes box, in the side panel and next to the screenshot in full screen. Type while you review; notes save in your browser as you type, and a yellow marker shows on each screen that has notes. Drag the box's bottom corner to make it bigger or smaller; it stays that size. When a screen has more than one state or error, each one has its own notes: pick a state's tab in full screen to write about it. States with notes are tagged **Notes**. They stay if you close the tab. Each map keeps its own notes: when you make a new map of the same journey it starts with no notes, and the older map keeps the notes typed in it.
-- **Share**:
-  - **Download map with notes** saves a copy of the map with your notes inside. Send that file: whoever opens it sees the notes and can add their own.
-  - **Copy notes as text** copies every note, in journey order, to paste into Jira, Confluence, Teams or an email.
-  - **See all notes** lists every note in the side panel.
-- **Export** saves the map as an SVG for Mural. Screenshots are shown whole, however long the page, sharp enough to read when you zoom in, and the key is on the right with the journey's name and the date the map was made.
+- **Interactive map (HTML)**, in the Export menu, saves a copy of the map to keep on your laptop, present from or upload to Confluence. It works offline on any computer, with the screenshots, full-screen view, states and errors. **Open in prototype** and **Open in VS Code** stay in the copy. Open in prototype works for anyone with the prototype running. Open in VS Code opens the files in the folder the map was made from. If your copy of the prototype is somewhere else, click **Use my copy of the prototype** under the VS Code links and paste where it is. It's remembered in your browser for every map of that prototype. Confluence shows an uploaded HTML file as an attachment to download and open, not inside the page.
+- **Export** also saves the map as an SVG for Mural. Screenshots are shown whole, however long the page, sharp enough to read when you zoom in, and the key is on the right with the journey's name and the date the map was made.
 - **SVG for Mural with all states** saves the map with every state and error of each page next to it, each with its name, so a whole review fits on one Mural board. Errors have a red border, and say what makes them show (like "Nothing entered") above the message, as in the full-screen view. It's in the Export menu on maps with screenshots of other states or errors (make the map again if you don't see it).
 - **Choose screens to export**, in the Export menu, lets you leave screens, states and errors out of both SVGs. The map shows every state and error next to its page, with a tick box on each one, all ticked to start with. Click a screen, state or error to untick it (it fades), and click again to put it back. Tags count only what's ticked. Click **Done** when you've finished, then export. The export closes up the gaps, and lines to and from a screen you left out go too. Your choice is kept for that map in your browser.
 
 ## Reviewing in a call
 
-Open the map and share your browser window. Click through the screens (full screen and **←** **→** work well for this) and type notes as people talk. Afterwards, use **Share › Download map with notes** and send the file, or **Copy notes as text** to paste the actions somewhere.
-
-Notes are saved in the browser you typed them in. A colleague only sees them once you send them the downloaded map.
+Open the map and share your browser window. Click through the screens (full screen and **←** **→** work well for this). To collect comments, export an **SVG for Mural** and put it on a board, where everyone can add sticky notes next to the screens.
 
 ## How it works
 
