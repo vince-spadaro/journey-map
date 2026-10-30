@@ -43,7 +43,7 @@ The viewer (`viewer/`) is plain JavaScript with no build step and no libraries:
 
 - `viewer/template.html`: page structure.
 - `viewer/viewer.css`: page styles. `viewer/map.css`: styles inside the SVG, so they go with an exported SVG.
-- `viewer/viewer.js`: drawing, pan and zoom, side panel, full-screen view with state tabs, and Export. The side panel is kept simple on purpose: the screenshot, its states and errors, and "Open in prototype" / "Open in VS Code". Where a page goes and comes from, answers, rules and file paths were removed from it.
+- `viewer/viewer.js`: drawing, pan and zoom, the page bar, full-screen view with state tabs, and Export. Selecting a page shows a floating bar at the bottom (`#page-bar`, `showDetails()`) with only "View full screen", "Open in prototype" and "Open in VS Code"; it's kept that simple on purpose (there's no side panel). States and errors are in the full-screen view's tabs. Full screen is a page of its own with "← Back to map" and the browser's back button (`history.pushState`).
 - There's no note taking in the map: it was removed, and reviews collect comments on the Mural export instead. Browser storage (`store`, left-out screens) must always be wrapped in `try`/`catch`: the map must work without it.
 - Build DOM with the `h()` and `make()` helpers and `textContent`, never `innerHTML` with page content.
 - The key (`#legend`) only shows rows for what's on the map: each row has a `data-show` that `viewer.js` checks against the data.
