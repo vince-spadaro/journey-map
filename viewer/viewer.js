@@ -17,7 +17,7 @@
   const svg = $('#map')
   const viewport = $('#viewport')
   const canvas = $('#canvas')
-  const panel = $('#panel')
+  const bar = $('#page-bar')
   const layers = { edges: $('#edges'), returns: $('#return-edges'), labels: $('#labels'), nodes: $('#nodes') }
 
   // Remembered per viewer; the page works without it
@@ -390,59 +390,6 @@
     return words.length ? 'Link ' + quoteList(words) : 'Link'
   }
 
-  // Screenshots show folded-away content opened; say so, as the page opens closed
-  function expandedNote (n) {
-    const e = n.expanded
-    if (!n.shot || !e) return null
-    const parts = []
-    if (e.details) parts.push(plural(e.details, 'details component'))
-    if (e.accordions) parts.push(plural(e.accordions, 'accordion'))
-    if (e.tabs) parts.push(e.tabs === 1 ? 'all tabs' : 'all tabs in ' + e.tabs + ' tab sets')
-    if (!parts.length) return null
-    return h('p', { class: 'panel__note' }, 'Screenshots show ' + parts.join(', ') + ' opened, so all the content can be reviewed. On the page they start closed.')
-  }
-
-  // Every screen state of a page, each opening in the full-screen view
-  function stateButton (n, index, label) {
-    return h('button', { class: 'linkish', type: 'button', onclick: () => openScreen(n.id, index) }, label)
-  }
-
-  function statesBox (n) {
-    const indexed = n.states.map((st, i) => ({ st, index: i + 1 }))
-    const others = indexed.filter(x => x.st.kind !== 'error')
-    const errors = indexed.filter(x => x.st.kind === 'error')
-    // The page as it opens counts as a state, as on the map's tags
-    const parts = [plural(others.length + 1, 'state')]
-    if (errors.length) parts.push(plural(errors.length, 'error'))
-    return h('div', { class: 'panel__states' },
-      h('p', null, h('strong', null, parts.join(' · '))),
-      others.length ? [
-        h('p', { class: 'panel__states-group' }, 'States'),
-        h('ul', null,
-          h('li', null,
-            stateButton(n, 0, openingLabel(n)),
-            h('span', { class: 'panel__how' }, 'When the page is first opened' + (n.sameAsAnswer ? ', or after choosing “' + n.sameAsAnswer + '”' : ''))
-          ),
-          others.map(({ st, index }) => h('li', null,
-            stateButton(n, index, stateLabel(st)),
-            h('span', { class: 'panel__how' },
-              st.listed ? 'Listed on the journey’s index page'
-                : st.kind === 'variant' ? 'After the link “' + st.label + '” (' + st.query + ')'
-                : st.kind === 'answer' ? 'After choosing “' + st.label + '”' + (st.question ? ' for “' + st.question + '”' : '')
-                  : 'When this option is chosen')
-          ))
-        )
-      ] : null,
-      errors.length ? [
-        h('p', { class: 'panel__states-group panel__states-group--error' }, 'Errors'),
-        h('ul', null, errors.map(({ st, index }) => h('li', null,
-          stateButton(n, index, st.messages.join(' / ')),
-          h('span', { class: 'panel__how' }, 'After: ' + st.label)
-        )))
-      ] : null
-    )
-  }
-
   // ---------------------------------------------------------------- selection
 
   // The selected page, every page on the way to it, and the pages it leads to next
@@ -488,14 +435,14 @@
   function clearSelection () {
     state.selected = null
     applyHighlights()
-    panel.hidden = true
+    bar.hidden = true
   }
 
-  // ---------------------------------------------------------------- panel
+  // ---------------------------------------------------------------- page bar
 
   // Like replaceChildren, but skips empty values and flattens lists
-  function fillPanel (...children) {
-    panel.replaceChildren(...children.flat(Infinity).filter(child => child != null && child !== false && child !== ''))
+  function fillBar (...children) {
+    bar.replaceChildren(...children.flat(Infinity).filter(child => child != null && child !== false && child !== ''))
   }
 
   function vscodeLink (file) {
@@ -503,26 +450,15 @@
     return 'vscode://file' + (clean.startsWith('/') ? '' : '/') + encodeURI(clean)
   }
 
+  // A floating bar at the bottom of the map for the selected page
   function showDetails (n) {
     const prototypeUrl = 'http://localhost:' + data.meta.port + n.url
-
-    fillPanel(
-      h('button', { class: 'panel__close', type: 'button', 'aria-label': 'Close', onclick: clearSelection }, '×'),
-      n.shot ? h('button', { class: 'panel__shot', type: 'button', 'aria-label': 'View ' + n.title + ' full screen', onclick: () => openScreen(n.id) },
-        h('img', { src: n.shot, alt: '' })
-      ) : null,
-      n.shot ? h('button', { class: 'panel__view', type: 'button', onclick: () => openScreen(n.id) }, 'View full screen') : null,
-      expandedNote(n),
-      hasShots && n.type === 'page' && !n.shot ? h('p', { class: 'panel__empty' }, 'No screenshot' + (n.shotError ? ': ' + n.shotError : '')) : null,
-      n.shot && n.states.length ? statesBox(n) : null,
-      // Kept simple: the screenshot, its states, and where to open the page
-      h('div', { class: 'panel__actions' },
-        n.type !== 'missing' ? h('a', { href: prototypeUrl, target: '_blank', rel: 'noopener' }, 'Open in prototype ↗') : null,
-        n.absFile ? h('a', { href: vscodeLink(n.absFile) }, 'Open in VS Code') : null
-      )
+    fillBar(
+      n.shot ? h('button', { class: 'page-bar__view', type: 'button', 'aria-label': 'View ' + n.title + ' full screen', onclick: () => openScreen(n.id) }, 'View full screen') : null,
+      n.type !== 'missing' ? h('a', { href: prototypeUrl, target: '_blank', rel: 'noopener' }, 'Open in prototype ↗') : null,
+      n.absFile ? h('a', { href: vscodeLink(n.absFile) }, 'Open in VS Code') : null
     )
-    panel.hidden = false
-    panel.scrollTop = 0
+    bar.hidden = !bar.children.length
   }
 
   // ---------------------------------------------------------------- pan and zoom
@@ -560,7 +496,7 @@
 
   function visibleWidth () {
     const rect = canvas.getBoundingClientRect()
-    return panel.hidden ? rect.width : Math.max(200, rect.width - panel.offsetWidth - 24)
+    return rect.width
   }
 
   function fit () {
@@ -906,7 +842,7 @@
     state.viewing = null
     viewer.hidden = true
     if (state.selected) showDetails(nodesById.get(state.selected))
-    const back = panel.querySelector('.panel__view')
+    const back = bar.querySelector('.page-bar__view')
     if (back && state.selected === id) back.focus()
   }
 
