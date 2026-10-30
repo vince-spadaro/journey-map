@@ -57,8 +57,6 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 .thumb-empty { fill: #f3f2f1; }
 .thumb-empty-text { font-size: 12px; fill: #505a5f; }
 
-.note-flag rect { fill: #ffdd00; stroke: #0b0c0c; stroke-width: 1.5; }
-.note-flag path { stroke: #0b0c0c; stroke-width: 1.6; stroke-linecap: round; fill: none; }
 
 .badge { fill: #f3f2f1; }
 .badge-text { font-size: 11.5px; font-weight: 600; fill: #0b0c0c; }

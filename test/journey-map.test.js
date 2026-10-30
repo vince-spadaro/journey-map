@@ -246,6 +246,29 @@ test('gives each version its own errors, and leaves out listed versions that are
   assert.deepStrictEqual(states('/listed/confirm?type=trust'), ['Select yes for trust'])
 })
 
+test('leaves out a listed state that looks exactly like the version it goes with', () => {
+  const { applyFollowed } = require('../lib/follow')
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
+  // Like ?new-search=true, which only clears old answers
+  graph.nodes.find(n => n.id === '/listed/confirm').states = [
+    { kind: 'variant', listed: true, label: 'Start again', query: '?fresh=true', shot: 'p' },
+    { kind: 'variant', listed: true, label: 'Another way', query: '?other=true', shot: 'x' }
+  ]
+  applyFollowed(graph, {
+    versions: [
+      { key: '/listed/choose', page: '/listed/choose', answers: {}, shot: 'c' },
+      { key: '/listed/confirm?type=personal', page: '/listed/confirm', answers: { type: 'personal' }, shot: 'p' },
+      { key: '/listed/confirm?type=trust', page: '/listed/confirm', answers: { type: 'trust' }, shot: 't' }
+    ],
+    steps: [
+      { from: '/listed/choose', to: '/listed/confirm?type=personal', kind: 'submit', field: 'type', value: 'personal' },
+      { from: '/listed/choose', to: '/listed/confirm?type=trust', kind: 'submit', field: 'type', value: 'trust' }
+    ]
+  })
+  const labels = graph.nodes.filter(n => n.id.startsWith('/listed/confirm')).flatMap(n => n.states.map(st => st.label))
+  assert.deepStrictEqual(labels, ['Another way'])
+})
+
 test('puts a version the answers never reach with the most alike version', () => {
   const { applyFollowed } = require('../lib/follow')
   const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
