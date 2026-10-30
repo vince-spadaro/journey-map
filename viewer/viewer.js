@@ -23,8 +23,7 @@
   // Remembered per viewer; the page works without it
   const store = {
     get (key) { try { return localStorage.getItem('journey-map:' + key) } catch (err) { return null } },
-    set (key, value) { try { localStorage.setItem('journey-map:' + key, value) } catch (err) {} },
-    remove (key) { try { localStorage.removeItem('journey-map:' + key) } catch (err) {} }
+    set (key, value) { try { localStorage.setItem('journey-map:' + key, value) } catch (err) {} }
   }
 
   const hasShots = !!data.meta.screenshots
@@ -391,17 +390,6 @@
     return words.length ? 'Link ' + quoteList(words) : 'Link'
   }
 
-  function conditionText (label, e) {
-    if (!label) return ''
-    if (e && e.named) return label
-    if (/^Any other (answer|result)$/.test(label)) return label
-    if (label === 'otherwise') return 'Otherwise'
-    if (label.startsWith('“')) return 'If they choose ' + label
-    if (label.startsWith('not “')) return 'If they don’t choose ' + label.slice(4)
-    if (label.startsWith('no answer to')) return 'If there’s ' + label
-    return label.startsWith('if ') ? 'If ' + label.slice(3) : 'When ' + label
-  }
-
   // Screenshots show folded-away content opened; say so, as the page opens closed
   function expandedNote (n) {
     const e = n.expanded
@@ -455,11 +443,6 @@
     )
   }
 
-  // The rule from the routes, for designers who want to check the code
-  function codeNote (code) {
-    return code ? h('span', { class: 'panel__code' }, 'Route rule: ', h('code', null, code)) : null
-  }
-
   // ---------------------------------------------------------------- selection
 
   // The selected page, every page on the way to it, and the pages it leads to next
@@ -510,155 +493,36 @@
 
   // ---------------------------------------------------------------- panel
 
-  function nodeButton (id) {
-    return h('button', { class: 'linkish', type: 'button', onclick: () => select(id, true) }, titleOf(id))
-  }
-
-  function edgeItem (e, otherId) {
-    const condition = conditionText(e.label, e)
-    return h('li', null,
-      nodeButton(otherId),
-      h('span', { class: 'panel__how' },
-        describeEdge(e),
-        e.query ? ' (' + e.query + ')' : '',
-        condition ? h('span', null, ' · ', h('b', null, condition)) : null
-      ),
-      e.excludes && e.excludes.length
-        ? h('span', { class: 'panel__how' }, 'Not: ' + e.excludes.map(x => conditionText(x).replace(/^(If they choose |When )/, '')).join('; '))
-        : null,
-      codeNote(e.code)
-    )
-  }
-
   // Like replaceChildren, but skips empty values and flattens lists
   function fillPanel (...children) {
     panel.replaceChildren(...children.flat(Infinity).filter(child => child != null && child !== false && child !== ''))
   }
 
-  function section (title, items, empty) {
-    if (!items.length && !empty) return null
-    return [h('h3', null, title), items.length ? h('ul', null, items) : h('p', { class: 'panel__empty' }, empty)]
-  }
-
-  // VS Code needs the file's full path, which is where the prototype was on
-  // the computer that made the map. Someone with their own copy somewhere
-  // else says where it is once, and it's remembered in their browser for
-  // every map of that prototype.
-  const madeIn = data.meta.prototypeRoot || ''
-  const FOLDER_KEY = 'prototype-folder:' + madeIn
-  const slashes = path => path.replace(/\\/g, '/').replace(/\/+$/, '')
-  const prototypeFolder = () => store.get(FOLDER_KEY) || madeIn
-
   function vscodeLink (file) {
-    let clean = slashes(file)
-    const from = slashes(madeIn)
-    if (from && clean.startsWith(from + '/')) clean = slashes(prototypeFolder()) + clean.slice(from.length)
+    const clean = file.replace(/\\/g, '/')
     return 'vscode://file' + (clean.startsWith('/') ? '' : '/') + encodeURI(clean)
   }
 
-  // Under the VS Code links: which copy of the prototype they open, and a way
-  // to use your own
-  function folderNote (n) {
-    if (!madeIn || !(n.absFile || n.absRouteFile)) return null
-    const own = store.get(FOLDER_KEY)
-    const box = h('div', { class: 'panel__folder' })
-    const showNote = () => box.replaceChildren(
-      h('span', null, 'Opens files in ', h('code', null, prototypeFolder()), '. '),
-      h('button', { class: 'linkish', type: 'button', onclick: showForm }, own ? 'Change' : 'Use my copy of the prototype')
-    )
-    function showForm () {
-      const field = h('input', { type: 'text', id: 'prototype-folder', class: 'panel__folder-field', spellcheck: 'false', autocomplete: 'off' })
-      field.value = prototypeFolder()
-      const save = value => {
-        const folder = slashes(value.trim())
-        if (!folder || folder === slashes(madeIn)) store.remove(FOLDER_KEY)
-        else store.set(FOLDER_KEY, folder)
-        showDetails(n)
-      }
-      box.replaceChildren(h('form', { onsubmit: event => { event.preventDefault(); save(field.value) } },
-        h('label', { for: 'prototype-folder' }, 'Where is your copy of the prototype?'),
-        h('p', { class: 'panel__how' }, 'On a Mac, right-click the prototype folder in Finder, hold Option and choose “Copy as Pathname”. On Windows, hold Shift, right-click the folder and choose “Copy as path”. Then paste it here.'),
-        field,
-        h('div', { class: 'panel__folder-actions' },
-          h('button', { class: 'btn', type: 'submit' }, 'Save'),
-          own ? h('button', { class: 'linkish', type: 'button', onclick: () => save('') }, 'Use the original folder') : null,
-          h('button', { class: 'linkish', type: 'button', onclick: showNote }, 'Cancel')
-        )
-      ))
-      field.focus()
-      field.select()
-    }
-    showNote()
-    return box
-  }
-
   function showDetails (n) {
-    const out = outgoing.get(n.id).slice().sort((a, b) => a.return - b.return)
-    const into = incoming.get(n.id).slice().sort((a, b) => a.return - b.return)
     const prototypeUrl = 'http://localhost:' + data.meta.port + n.url
 
     fillPanel(
       h('button', { class: 'panel__close', type: 'button', 'aria-label': 'Close', onclick: clearSelection }, '×'),
-      n.shot ? h('button', { class: 'panel__shot', type: 'button', 'aria-label': 'Show the full screenshot', onclick: () => openScreen(n.id) },
-        h('img', { src: n.shot, alt: 'Screenshot of ' + n.title }),
-        h('span', null, 'Full screen')
+      n.shot ? h('button', { class: 'panel__shot', type: 'button', 'aria-label': 'View ' + n.title + ' full screen', onclick: () => openScreen(n.id) },
+        h('img', { src: n.shot, alt: '' })
       ) : null,
+      n.shot ? h('button', { class: 'panel__view', type: 'button', onclick: () => openScreen(n.id) }, 'View full screen') : null,
       expandedNote(n),
       hasShots && n.type === 'page' && !n.shot ? h('p', { class: 'panel__empty' }, 'No screenshot' + (n.shotError ? ': ' + n.shotError : '')) : null,
       n.shot && n.states.length ? statesBox(n) : null,
-      h('p', { class: 'panel__kind' }, KIND_LABEL[n.type] + (n.entry ? ' · Start' : '')),
-      h('h2', null, n.title),
-      n.heading && n.heading !== n.title ? h('p', { class: 'panel__heading' }, n.heading) : null,
-      // This version of the page, after these answers
-      (n.answersInWords || []).length ? h('div', { class: 'panel__answers' },
-        h('p', { class: 'panel__states-group' }, 'After these answers'),
-        h('ul', null, n.answersInWords.map(a => h('li', null, h('strong', null, a.answer), h('span', { class: 'panel__how' }, a.question))))
-      ) : null,
-      h('p', { class: 'panel__url' }, h('code', null, n.url)),
+      // Kept simple: the screenshot, its states, and where to open the page
       h('div', { class: 'panel__actions' },
         n.type !== 'missing' ? h('a', { href: prototypeUrl, target: '_blank', rel: 'noopener' }, 'Open in prototype ↗') : null,
-        n.absFile ? h('a', { class: 'secondary', href: vscodeLink(n.absFile) }, 'Open in VS Code') : null,
-        n.absRouteFile ? h('a', { class: 'secondary', href: vscodeLink(n.absRouteFile) }, 'Open the routes in VS Code') : null
-      ),
-      folderNote(n),
-      n.file ? h('p', null, h('code', null, n.file)) : null,
-      n.routeFile ? h('p', null, 'The route in ', h('code', null, n.routeFile), ' decides where to go next.') : null,
-      n.notes.map(text => h('p', { class: 'panel__note' }, text)),
-      section('Goes to', out.map(e => edgeItem(e, e.to)), n.type === 'page' ? 'Nothing – this is the end of the journey.' : ''),
-      section('Comes from', into.map(e => edgeItem(e, e.from)), n.type === 'page' && !n.entry ? 'No page links here.' : ''),
-      // The errors the routes can show, only when they weren't photographed:
-      // photographed errors are already in the states box above
-      section('Errors', (n.states.some(st => st.kind === 'error') ? [] : n.errorStates).map(state => h('li', { class: 'panel__error' },
-        state.messages.length ? state.messages.map(m => h('strong', { style: 'display:block' }, m)) : h('strong', null, 'Shows an error message'),
-        h('span', { class: 'panel__how' }, hasShots ? 'Not photographed: the tool couldn’t make this error appear' : 'Run the tool with screenshots to see this error')
-      ))),
-      // Photographed versions are in the states box; without screenshots, list the links
-      section('Other versions of this page', (n.states.some(st => st.kind === 'variant') ? [] : n.variants).map(v => h('li', null,
-        h('a', { href: prototypeUrl + v.query, target: '_blank', rel: 'noopener' }, v.query),
-        v.text ? h('span', { class: 'panel__how' }, 'Link “' + v.text + '”') : null
-      ))),
-      externalLinks(n)
+        n.absFile ? h('a', { href: vscodeLink(n.absFile) }, 'Open in VS Code') : null
+      )
     )
     panel.hidden = false
     panel.scrollTop = 0
-  }
-
-  // Links that leave the prototype, collapsed so they don't crowd the panel
-  function externalLinks (n) {
-    if (!n.externalLinks.length) return null
-    const count = n.externalLinks.length
-    return h('details', { class: 'panel__details' },
-      h('summary', null, 'Links to ' + plural(count, 'external website')),
-      h('ul', null, n.externalLinks.map(link => {
-        let site = link.href
-        try { site = new URL(link.href).hostname.replace(/^www\./, '') } catch (err) {}
-        return h('li', null,
-          h('a', { href: link.href, target: '_blank', rel: 'noopener noreferrer', class: 'panel__external' },
-            (link.text || link.href) + ' ↗'),
-          h('span', { class: 'panel__how' }, site)
-        )
-      }))
-    )
   }
 
   // ---------------------------------------------------------------- pan and zoom
@@ -986,6 +850,8 @@
     if (!wasOpen) {
       $('#screen-body').scrollTop = 0
       $('#screen-close').focus()
+      // A page of its own: the browser's back button goes back to the map
+      try { history.pushState({ screen: true }, '') } catch (err) {}
     }
   }
 
@@ -1029,19 +895,25 @@
     select(next.id, true)
   }
 
-  function closeScreen () {
+  // `fromHistory` when the browser's back button was used
+  function closeScreen (fromHistory) {
+    if (!state.viewing) return
+    if (fromHistory !== true && history.state && history.state.screen) {
+      history.back()
+      return
+    }
     const id = state.viewing
     state.viewing = null
     viewer.hidden = true
     if (state.selected) showDetails(nodesById.get(state.selected))
-    const back = panel.querySelector('.panel__shot')
+    const back = panel.querySelector('.panel__view')
     if (back && state.selected === id) back.focus()
   }
 
-  $('#screen-close').addEventListener('click', closeScreen)
+  $('#screen-close').addEventListener('click', () => closeScreen())
+  window.addEventListener('popstate', () => { if (state.viewing) closeScreen(true) })
   $('#screen-prev').addEventListener('click', () => stepScreen(-1))
   $('#screen-next').addEventListener('click', () => stepScreen(1))
-  viewer.addEventListener('click', event => { if (event.target === viewer) closeScreen() })
 
   const showOutside = $('#show-outside')
   // Nothing to show or hide on a map with no pages outside the journey

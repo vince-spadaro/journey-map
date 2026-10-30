@@ -74,9 +74,10 @@
     <p class="legend__hint">Drag or scroll to move · ⌘/Ctrl + scroll to zoom</p>
   </details>
 </main>
-<div id="screen" class="screen" hidden role="dialog" aria-modal="true" aria-labelledby="screen-title">
+<div id="screen" class="screen" hidden role="region" aria-labelledby="screen-title">
   <div class="screen__box">
     <div class="screen__head">
+      <button type="button" id="screen-close" class="btn screen__back">← Back to map</button>
       <div class="screen__titles">
         <h2 id="screen-title"></h2>
         <p id="screen-meta"></p>
@@ -92,7 +93,6 @@
         <button type="button" id="screen-next" class="btn" aria-label="Next screen">Next →</button>
         <a id="screen-open" class="btn" target="_blank" rel="noopener">Open in prototype ↗</a>
         <a id="screen-code" class="btn" hidden>Open in VS Code</a>
-        <button type="button" id="screen-close" class="btn" aria-label="Close">Close</button>
       </div>
     </div>
     <div class="screen__states" id="screen-states" role="group" aria-label="Page states" hidden></div>
