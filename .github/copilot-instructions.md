@@ -17,7 +17,7 @@ Use these words consistently in the map, the terminal and the README:
 
 - **state**: another version of a screen. The page as it opens counts as a state, so a page with one extra state shows "2 states". No tag when a page has only its normal state. Extra states are conditional reveals (an option selected), links back to the same page with a query string (for example `?requestedNew=true`), and answers: when a page's template changes with an answer on the page before it (`conditionFields` in `views.js`, `answerStates` in `graph.js`), that page before it branches once per answer and the page is photographed after each answer (`?field=value`, in a private session).
 - **error**: an error screen. Tag shows from "1 error". Never "error state".
-- Branches are named in the words the user sees: radio, checkbox and select labels from the page that sends the form, for example “I want to use a different address”. Never show "otherwise": name the options left over, or use "Any other answer" (after a page) or "Any other result" (when a route works it out, `decided` edges), and list what it excludes in the side panel. The rule from the routes is kept as `code` and shown in small text as "Route rule:".
+- Branches are named in the words the user sees: radio, checkbox and select labels from the page that sends the form, for example “I want to use a different address”. Never show "otherwise": name the options left over, or use "Any other answer" (after a page) or "Any other result" (when a route works it out, `decided` edges). The rule from the routes is kept as `code` and shown when hovering over the branch's name.
 - Return links (Change links and links back to earlier pages) are labelled with the link's full words, including visually hidden text: "Change contact name", not "Change".
 
 Write all text for designers in plain English, following the GOV.UK style: short sentences, sentence case, no jargon. Explain what something does for the designer, not how the code works.
@@ -43,11 +43,11 @@ The viewer (`viewer/`) is plain JavaScript with no build step and no libraries:
 
 - `viewer/template.html`: page structure.
 - `viewer/viewer.css`: page styles. `viewer/map.css`: styles inside the SVG, so they go with an exported SVG.
-- `viewer/viewer.js`: drawing, pan and zoom, side panel, full-screen view with state tabs, and Export.
+- `viewer/viewer.js`: drawing, pan and zoom, side panel, full-screen view with state tabs, and Export. The side panel is kept simple on purpose: the screenshot, its states and errors, and "Open in prototype" / "Open in VS Code". Where a page goes and comes from, answers, rules and file paths were removed from it.
 - There's no note taking in the map: it was removed, and reviews collect comments on the Mural export instead. Browser storage (`store`, left-out screens) must always be wrapped in `try`/`catch`: the map must work without it.
 - Build DOM with the `h()` and `make()` helpers and `textContent`, never `innerHTML` with page content.
 - The key (`#legend`) only shows rows for what's on the map: each row has a `data-show` that `viewer.js` checks against the data.
-- "Interactive map (HTML)" saves the page as it was opened (`pristineHtml`), so the copy is the map itself, with its "Open in prototype" and VS Code links. VS Code links use full paths (`absFile`), so someone whose copy of the prototype is elsewhere sets their folder once ("Use my copy of the prototype", `folderNote()`); `vscodeLink()` swaps `meta.prototypeRoot` for it. It's kept in `localStorage` per prototype root (`journey-map:prototype-folder:<root>`).
+- "Interactive map (HTML)" saves the page as it was opened (`pristineHtml`), so the copy is the map itself, with its "Open in prototype" and VS Code links.
 - `meta.createdAt` (set in `render.js`) is when the map was made. It's shown in the header and tab title, and used in export file names. Older maps don't have it, so check before using it.
 
 ## Installing (for helping colleagues)
