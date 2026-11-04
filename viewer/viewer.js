@@ -455,7 +455,7 @@
     const prototypeUrl = 'http://localhost:' + data.meta.port + n.url
     fillBar(
       n.shot ? h('button', { class: 'page-bar__view', type: 'button', 'aria-label': 'View ' + n.title + ' full screen', onclick: () => openScreen(n.id) }, 'View full screen') : null,
-      n.type !== 'missing' ? h('a', { href: prototypeUrl, target: '_blank', rel: 'noopener' }, 'Open in prototype ↗') : null,
+      n.type !== 'missing' && !n.nowhere ? h('a', { href: prototypeUrl, target: '_blank', rel: 'noopener' }, 'Open in prototype ↗') : null,
       n.absFile ? h('a', { href: vscodeLink(n.absFile) }, 'Open in VS Code') : null
     )
     bar.hidden = !bar.children.length
@@ -704,6 +704,7 @@
   function stateLabel (st) {
     if (st.listed) return st.label
     if (st.kind === 'variant' || st.kind === 'answer') return 'After “' + st.label + '”'
+    if (st.kind === 'tab') return '“' + st.label + '” tab'
     if (st.kind === 'error') {
       return 'Error: ' + st.messages[0] + (st.messages.length > 1 ? ' (+' + (st.messages.length - 1) + ' more)' : '')
     }

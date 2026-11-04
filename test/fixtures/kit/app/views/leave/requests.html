@@ -1,0 +1,14 @@
+{% extends "layouts/main.html" %}
+{% block content %}
+<a href="#main-content" class="govuk-skip-link">Skip to main content</a>
+<h1>Your requests</h1>
+{# Links to other journeys go nowhere in a self-contained journey folder #}
+{% set actions = {
+  Pending: [{ text: "Resend request", href: "resend" }],
+  Accepted: [{ text: "Cancel your authorisation", href: "#" }],
+  Expired: [{ text: "Start new request", href: "#" }]
+} %}
+<a href="#" target="_blank" rel="noreferrer noopener">Sign your client up (opens in a new tab)</a>
+<a href="#" class="govuk-link">Read the guidance (opens in new tab)</a>
+<a href="#"></a>
+{% endblock %}

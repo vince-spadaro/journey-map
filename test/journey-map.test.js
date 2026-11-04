@@ -580,3 +580,183 @@ test('makes conditions readable', () => {
   assert.strictEqual(prettyCondition('data.age >= 18 && !data.blocked'), 'age >= 18 and not blocked')
   assert.strictEqual(prettyCondition('Object.keys(errors).length > 0'), 'has errors')
 })
+
+test('keeps links to the same page with different answers in the address apart, and carries those answers on', () => {
+  const { linkAnswers } = require('../lib/follow')
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'choice') })
+  const links = graph.edges.filter(e => e.from === '/choice/start' && e.to === '/choice/sign-in')
+  assert.deepStrictEqual(links.map(e => e.query).sort(), ['?startChoice=decline', '?startChoice=start'])
+  assert.deepStrictEqual(links.map(e => e.texts[0]).sort(), ['I do not want this agent', 'Start now'])
+  // The route after sign in uses the answer, so following each link carries it on
+  const used = new Set(['startChoice'])
+  const decline = links.find(e => e.query === '?startChoice=decline')
+  assert.deepStrictEqual(linkAnswers(decline, used), { startChoice: 'decline' })
+  // Answers the journey doesn't use, and error addresses, aren't carried
+  assert.deepStrictEqual(linkAnswers({ kind: 'link', query: '?preview=true&error=required' }, used), {})
+  assert.deepStrictEqual(linkAnswers({ kind: 'submit', query: '?startChoice=decline' }, used), {})
+  // Two ways on from the start page: each link is named with its words
+  assert.deepStrictEqual(links.map(e => e.label).sort(), ['“I do not want this agent”', '“Start now”'])
+  // After sign in, a branch on an answer given before is followed, unless it
+  // contradicts the answer given on the way here
+  const { ruleAnswer } = require('../lib/follow')
+  const toDecline = graph.edges.find(e => e.from === '/choice/sign-in' && e.to === '/choice/decline')
+  assert.deepStrictEqual(ruleAnswer(toDecline, {}), { field: 'startChoice', value: 'decline' })
+  assert.deepStrictEqual(ruleAnswer(toDecline, { startChoice: 'decline' }), { field: 'startChoice', value: 'decline' })
+  assert.strictEqual(ruleAnswer(toDecline, { startChoice: 'start' }), null)
+  assert.strictEqual(ruleAnswer({ rule: 'otherwise' }, {}), null)
+  const out = graph.edges.filter(e => e.from === '/choice/sign-in').map(e => e.to + ' ' + e.rule)
+  assert.deepStrictEqual(out.sort(), ["/choice/consent otherwise", "/choice/decline startChoice = 'decline'"])
+})
+
+test('draws links to "#" as ways out of the journey, named with their words', () => {
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'leave') })
+  const leaving = graph.nodes.filter(n => n.nowhere)
+  // Like other pages outside the journey, each page that links there gets its own copy
+  assert.deepStrictEqual(leaving.map(n => n.title).sort(), ['Cancel your authorisation', 'Start new request', 'Start new request'])
+  assert.ok(leaving.every(n => n.type === 'exit' && n.outside))
+  const into = title => graph.edges.filter(e => leaving.some(n => n.id === e.to && n.title === title)).map(e => e.from).sort()
+  assert.deepStrictEqual(into('Start new request'), ['/leave/requests', '/leave/resend'])
+  assert.deepStrictEqual(into('Cancel your authorisation'), ['/leave/requests'])
+  // Links that open in a new tab, skip links and links with no words aren't ways out
+  assert.ok(!graph.nodes.some(n => /guidance|sign your client up|skip/i.test(n.title)))
+  assert.ok(graph.edges.some(e => e.from === '/leave/requests' && e.to === '/leave/resend'))
+})
+
+test('makes other versions of a page screens of their own, and keeps reveals, tabs and errors as states', () => {
+  const { splitVersions } = require('../lib/follow')
+  const page = (id, states = [], extra = {}) => ({ id, type: 'page', url: id, title: id, thumb: 'thumb:' + id, shot: 'shot:' + id, states, variants: [], listedStates: [], errorStates: [], warnings: [], ...extra })
+  const line = (from, to, kind = 'submit') => ({ id: from + to, from, to, kind, label: '', rule: '', texts: [] })
+  const graph = {
+    meta: { mainEntry: '/details', stats: {} },
+    nodes: [
+      page('/details'),
+      page('/other-way'),
+      page('/confirm', [
+        { kind: 'reveal', label: 'Yes', shot: 'shot:reveal' },
+        { kind: 'tab', label: 'History', shot: 'shot:tab' },
+        { kind: 'error', label: 'Nothing entered', messages: ['Select one'], shot: 'shot:error' },
+        { kind: 'variant', listed: true, label: 'Agent suspended', query: '?view=agent-suspended', thumb: 'thumb:suspended', shot: 'shot:suspended' }
+      ]),
+      page('/code', [{ kind: 'variant', label: 'Request a new code', query: '?requestedNew=true', thumb: 'thumb:new', shot: 'shot:new' }]),
+      page('/result', [{ kind: 'answer', label: 'A trust', question: 'Who is it for?', thumb: 'thumb:trust', shot: 'shot:trust' }], { answerStates: { from: '/details', field: 'who', options: [] } })
+    ],
+    edges: [line('/details', '/confirm'), line('/other-way', '/confirm'), line('/details', '/other-way'), line('/confirm', '/code', 'link'), line('/code', '/result')]
+  }
+  splitVersions(graph)
+  const byId = id => graph.nodes.find(n => n.id === id)
+
+  assert.deepStrictEqual(byId('/confirm').states.map(st => st.kind), ['reveal', 'tab', 'error'], 'reveals, tabs and errors stay states')
+  const suspended = byId('/confirm?view=agent-suspended')
+  assert.ok(suspended, 'a version the index page lists is a screen of its own')
+  assert.strictEqual(suspended.thumb, 'thumb:suspended')
+  assert.strictEqual(suspended.shot, 'shot:suspended')
+  assert.strictEqual(suspended.title, '/confirm – Agent suspended')
+  assert.deepStrictEqual(suspended.states, [])
+  assert.deepStrictEqual(graph.edges.filter(e => e.to === suspended.id).map(e => e.from).sort(), ['/details', '/other-way'], 'it branches from every page that leads to the page')
+  assert.ok(graph.edges.filter(e => e.to === suspended.id).every(e => e.label === 'Agent suspended' && e.version))
+
+  const code = graph.edges.filter(e => e.to === '/code?requestedNew=true')
+  assert.deepStrictEqual(code.map(e => [e.from, e.kind, e.texts[0]]), [['/code', 'link', 'Request a new code']], 'a link back to the page branches from the page')
+
+  const trust = graph.edges.filter(e => e.to === '/result?version=1')
+  assert.deepStrictEqual(trust.map(e => e.from), ['/details'], 'an answer on an earlier page branches from the page that asks it')
+  assert.ok(byId('/result').answerStates, 'the page keeps what names the answers')
+
+  assert.deepStrictEqual(graph.edges.filter(e => e.from === suspended.id && !e.version).map(e => e.to), ['/code'], 'a version screen carries on with the page’s own ways on')
+
+  // A version of a screen the journey already led to with answers gets one address with both
+  const followed = {
+    meta: { mainEntry: '/a', stats: {} },
+    nodes: [page('/a'), page('/b?service=CBC', [{ kind: 'variant', listed: true, label: 'Outside the UK', query: '?service=CBC&where=non-uk', shot: 's' }], { url: '/b?service=CBC' })],
+    edges: [line('/a', '/b?service=CBC')]
+  }
+  splitVersions(followed)
+  const outside = followed.nodes.find(n => n.version)
+  assert.strictEqual(outside.id, '/b?service=CBC&where=non-uk')
+  assert.strictEqual(outside.url, '/b?service=CBC&where=non-uk')
+})
+
+test('counts only reveals and tabs as states, and versions on maps without screenshots', () => {
+  const { measure } = require('../lib/layout')
+  const page = { id: '/p', type: 'page', title: 'P', states: [{ kind: 'reveal' }, { kind: 'tab' }], variants: [], listedStates: [{ query: '?a=1' }], errorStates: [], warnings: [], fileName: 'p.html' }
+  measure(page)
+  assert.deepStrictEqual(page.badges.map(b => b.text), ['3 states', '2 versions'])
+  const photographed = { ...page, shot: 'shot', versionsSplit: true }
+  measure(photographed)
+  assert.deepStrictEqual(photographed.badges.map(b => b.text), ['3 states'], 'photographed versions are screens of their own, not counted')
+})
+
+test('keeps version branches named, and gives each version the heading it shows when the heading depends on the answers', () => {
+  const { splitVersions } = require('../lib/follow')
+  const { findTitle } = require('../lib/views')
+  const src = '{% set pageName = "Request declined" if declined else "Agent authorised" %}\n{{ govukPanel({ titleText: pageName }) }}'
+  const info = findTitle(src, 'complete.html')
+  assert.strictEqual(info.titleVaries, true, 'a heading picked with if … else depends on the answers')
+  assert.strictEqual(findTitle('<h1>Agent authorised</h1>', 'complete.html').titleVaries, undefined)
+
+  const page = {
+    id: '/complete', type: 'page', url: '/complete', title: 'Agent authorised', titleVaries: true, thumb: 't', shot: 's',
+    variants: [], listedStates: [], errorStates: [], warnings: [],
+    states: [{ kind: 'variant', listed: true, label: 'Client declines', query: '?accepted=false', heading: 'Request declined', thumb: 't2', shot: 's2' }]
+  }
+  const graph = {
+    meta: { mainEntry: '/consent', stats: {} },
+    nodes: [{ id: '/consent', type: 'page', url: '/consent', title: 'Consent', states: [], variants: [], listedStates: [], errorStates: [], warnings: [] }, page],
+    edges: [{ id: 'e1', from: '/consent', to: '/complete', kind: 'submit', label: '', rule: '', texts: [] }]
+  }
+  splitVersions(graph)
+  const declined = graph.nodes.find(n => n.id === '/complete?accepted=false')
+  assert.strictEqual(declined.title, 'Request declined – Client declines')
+  nameBranches(graph)
+  assert.strictEqual(graph.edges.find(e => e.to === declined.id).label, 'Client declines', 'naming the branches keeps the version’s name')
+})
+
+test('carries version screens on only where they show a way on, to the next page’s matching version', () => {
+  const { splitVersions } = require('../lib/follow')
+  const page = (id, states = []) => ({ id, type: 'page', url: id, title: id, thumb: 't', shot: 's', states, variants: [], listedStates: [], errorStates: [], warnings: [] })
+  const line = (from, to, kind, rule = '') => ({ id: from + to, from, to, kind, label: '', rule, texts: [] })
+  const both = { links: ['/select-service'], forms: ['/consent'] }
+  const graph = {
+    meta: { mainEntry: '/confirm', stats: {} },
+    nodes: [
+      page('/select-service'),
+      page('/confirm', [{ kind: 'variant', listed: true, label: 'Agent suspended', query: '?view=agent-suspended', ways: { links: ['/select-service'], forms: [] }, thumb: 't', shot: 's1' }]),
+      page('/consent', [{ kind: 'variant', listed: true, label: 'A trust', query: '?type=trust', ways: both, thumb: 't', shot: 's2' }]),
+      page('/complete', [
+        { kind: 'variant', listed: true, label: 'Declined', query: '?accepted=false', ways: both, thumb: 't', shot: 's3' },
+        { kind: 'variant', listed: true, label: 'A trust', query: '?type=trust', ways: both, thumb: 't', shot: 's4' }
+      ])
+    ],
+    edges: [
+      line('/confirm', '/consent', 'submit'),
+      line('/confirm', '/select-service', 'link'),
+      line('/consent', '/complete', 'submit', "accepted = 'true'"),
+      line('/consent', '/complete?accepted=false', 'submit', "accepted = 'false'")
+    ]
+  }
+  splitVersions(graph)
+  const from = id => graph.edges.filter(e => e.from === id && !e.version).map(e => e.to).sort()
+  assert.deepStrictEqual(from('/confirm?view=agent-suspended'), ['/select-service'], 'no form, so no Continue: only the link it shows')
+  assert.deepStrictEqual(from('/consent?type=trust'), ['/complete?accepted=false', '/complete?type=trust'], 'Yes goes to the trust’s version of the next page')
+  assert.ok(!graph.edges.some(e => e.version && e.from === '/consent' && e.to === '/complete?type=trust'), 'the trust’s confirmation is reached from the trust’s consent, not the page')
+  assert.ok(graph.edges.filter(e => e.from === '/consent?type=trust').every(e => e.rule), 'the branches keep their rules, to be named')
+})
+
+test('gives a version screen the links it shows that its own page has no line for', () => {
+  const { splitVersions } = require('../lib/follow')
+  const page = (id, url, states = []) => ({ id, type: 'page', url, title: id, thumb: 't', shot: 's', states, variants: [], listedStates: [], errorStates: [], warnings: [] })
+  const line = (from, to, kind) => ({ id: from + to, from, to, kind, label: '', rule: '', texts: ['Start again'] })
+  const graph = {
+    meta: { mainEntry: '/confirm', stats: {} },
+    nodes: [
+      page('/select-service', '/select-service'),
+      page('/consent', '/consent'),
+      page('/confirm', '/confirm'),
+      page('/confirm?service=CBC', '/confirm?service=CBC', [{ kind: 'variant', listed: true, label: 'Agent suspended', query: '?service=CBC&view=agent-suspended', ways: { links: ['/select-service', '/confirm'], forms: [] }, thumb: 't', shot: 's1' }])
+    ],
+    edges: [line('/confirm', '/select-service', 'link'), line('/confirm', '/consent', 'submit'), line('/confirm?service=CBC', '/consent', 'submit')]
+  }
+  splitVersions(graph)
+  const out = graph.edges.filter(e => e.from === '/confirm?service=CBC&view=agent-suspended').map(e => [e.to, e.kind])
+  assert.deepStrictEqual(out, [['/select-service', 'link']])
+})

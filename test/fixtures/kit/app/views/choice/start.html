@@ -1,0 +1,6 @@
+{% extends "layouts/main.html" %}
+{% block content %}
+<h1>Respond to a request</h1>
+{{ govukButton({ text: "Start now", href: "sign-in?startChoice=start", isStartButton: true }) }}
+<p><a href="sign-in?startChoice=decline">I do not want this agent</a></p>
+{% endblock %}
