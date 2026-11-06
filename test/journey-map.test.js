@@ -267,6 +267,27 @@ test('leaves out a listed state that looks exactly like the version it goes with
   })
   const labels = graph.nodes.filter(n => n.id.startsWith('/listed/confirm')).flatMap(n => n.states.map(st => st.label))
   assert.deepStrictEqual(labels, ['Another way'])
+
+  // Like ?factType=postcode when postcode is what the page asks anyway: the
+  // same words and questions, even when the pixels differ a little
+  const again = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'listed') })
+  again.nodes.find(n => n.id === '/listed/confirm').states = [
+    { kind: 'variant', listed: true, label: 'Postcode', query: '?type=personal&fact=postcode', shot: 'p2', screen: 'Postcode?|text:postcode' },
+    { kind: 'variant', listed: true, label: 'Country', query: '?type=personal&fact=country', shot: 'p3', screen: 'Country?|select:country' }
+  ]
+  applyFollowed(again, {
+    versions: [
+      { key: '/listed/choose', page: '/listed/choose', answers: {}, shot: 'c' },
+      { key: '/listed/confirm?type=personal', page: '/listed/confirm', answers: { type: 'personal' }, shot: 'p', look: 'Postcode?|text:postcode' },
+      { key: '/listed/confirm?type=trust', page: '/listed/confirm', answers: { type: 'trust' }, shot: 't' }
+    ],
+    steps: [
+      { from: '/listed/choose', to: '/listed/confirm?type=personal', kind: 'submit', field: 'type', value: 'personal' },
+      { from: '/listed/choose', to: '/listed/confirm?type=trust', kind: 'submit', field: 'type', value: 'trust' }
+    ]
+  })
+  const kept = again.nodes.filter(n => n.id.startsWith('/listed/confirm')).flatMap(n => n.states.map(st => st.label))
+  assert.deepStrictEqual(kept, ['Country'])
 })
 
 test('puts a version the answers never reach with the most alike version', () => {
@@ -686,6 +707,37 @@ test('counts only reveals and tabs as states, and versions on maps without scree
   assert.deepStrictEqual(photographed.badges.map(b => b.text), ['3 states'], 'photographed versions are screens of their own, not counted')
 })
 
+test('keeps versions of a page that isn’t on the way through the journey as variants, not branches', () => {
+  const { splitVersions } = require('../lib/follow')
+  const { measure, onMainFlow } = require('../lib/layout')
+  const page = (id, states = []) => ({ id, type: 'page', url: id, title: id, thumb: 't', shot: 's', states, variants: [], listedStates: [], errorStates: [], warnings: [], fileName: id + '.html' })
+  const variant = (label, query) => ({ kind: 'variant', listed: true, label, query, thumb: 't', shot: 's' })
+  const line = (from, to, kind, extra = {}) => ({ id: from + to, from, to, kind, label: '', rule: '', texts: [], ...extra })
+  const graph = {
+    meta: { mainEntry: '/start', stats: {} },
+    nodes: [
+      page('/start'),
+      page('/select', [variant('Trust', '?clientType=trust')]),
+      page('/already-exists', [variant('VAT', '?clientService=VAT'), variant('Income record', '?clientService=IR')])
+    ],
+    edges: [line('/start', '/select', 'submit'), line('/already-exists', '/start', 'link', { return: true })]
+  }
+  assert.deepStrictEqual([...onMainFlow(graph)].sort(), ['/select', '/start'], 'return links don’t count')
+  splitVersions(graph)
+  assert.ok(graph.nodes.some(n => n.id === '/select?clientType=trust'), 'a page on the way through still branches')
+  const exists = graph.nodes.find(n => n.id === '/already-exists')
+  assert.deepStrictEqual(exists.states.map(st => st.label), ['VAT', 'Income record'], 'its versions stay with the page')
+  assert.ok(!graph.nodes.some(n => n.id.startsWith('/already-exists?')))
+  assert.ok(!graph.edges.some(e => e.from === '/already-exists' && e.version))
+  measure(exists)
+  assert.deepStrictEqual(exists.badges.map(b => b.text), ['3 variants'])
+
+  // Without screenshots, the same page says variants, not versions
+  const unphotographed = { ...page('/p'), shot: null, listedStates: [{ query: '?a=1' }], offFlow: true }
+  measure(unphotographed)
+  assert.deepStrictEqual(unphotographed.badges.map(b => b.text), ['2 variants'])
+})
+
 test('keeps version branches named, and gives each version the heading it shows when the heading depends on the answers', () => {
   const { splitVersions } = require('../lib/follow')
   const { findTitle } = require('../lib/views')
@@ -754,9 +806,110 @@ test('gives a version screen the links it shows that its own page has no line fo
       page('/confirm', '/confirm'),
       page('/confirm?service=CBC', '/confirm?service=CBC', [{ kind: 'variant', listed: true, label: 'Agent suspended', query: '?service=CBC&view=agent-suspended', ways: { links: ['/select-service', '/confirm'], forms: [] }, thumb: 't', shot: 's1' }])
     ],
-    edges: [line('/confirm', '/select-service', 'link'), line('/confirm', '/consent', 'submit'), line('/confirm?service=CBC', '/consent', 'submit')]
+    edges: [line('/confirm', '/select-service', 'link'), line('/select-service', '/confirm?service=CBC', 'submit'), line('/confirm', '/consent', 'submit'), line('/confirm?service=CBC', '/consent', 'submit')]
   }
   splitVersions(graph)
   const out = graph.edges.filter(e => e.from === '/confirm?service=CBC&view=agent-suspended').map(e => [e.to, e.kind])
   assert.deepStrictEqual(out, [['/select-service', 'link']])
+})
+
+test('draws pages that can show anywhere on their own, in a row above the journey', async () => {
+  const { parsePage } = require('../lib/views')
+  const { layoutOne, measure } = require('../lib/layout')
+  assert.strictEqual(parsePage('{# journey-map: anywhere #}\n<h1>You have been signed out</h1>', 'iv-timed-out.html').anywhere, true)
+  assert.strictEqual(parsePage('<h1>Start</h1>', 'start.html').anywhere, undefined)
+
+  const page = (id, extra = {}) => ({ id, type: 'page', title: id, file: id, fileLines: [id], states: [], errorStates: [], variants: [], listedStates: [], warnings: [], notes: [], ...extra })
+  const graph = {
+    meta: {},
+    nodes: [page('/start', { entry: true }), page('/end'), page('/signed-out', { anywhere: true })],
+    edges: [{ id: 'e1', from: '/start', to: '/end', kind: 'link', label: '' }]
+  }
+  graph.nodes.forEach(measure)
+  assert.ok(graph.nodes[2].badges.some(b => b.text === 'Any page'))
+  const layout = await layoutOne(graph, 'DOWN', false)
+  const alone = layout.nodes['/signed-out']
+  assert.ok(alone, 'it’s on the map')
+  assert.ok(alone.y + alone.height < layout.nodes['/start'].y, 'above the journey')
+  assert.ok(layout.edges.e1.points.every(p => p.y > alone.y + alone.height), 'the journey’s lines move down with it')
+})
+
+test('only the main start is tagged Start, not pages nothing leads to', () => {
+  const { arrange } = require('../lib/graph')
+  const page = id => ({ id, type: 'page', title: id, states: [], errorStates: [], variants: [], listedStates: [], warnings: [], notes: [] })
+  const graph = {
+    meta: { mainEntry: '/start', stats: {} },
+    nodes: [page('/start'), page('/end'), page('/kickout')],
+    edges: [
+      { id: 'e1', from: '/start', to: '/end', kind: 'submit', label: '' },
+      { id: 'e2', from: '/kickout', to: '/end', kind: 'link', label: '' }
+    ]
+  }
+  arrange(graph)
+  const byId = id => graph.nodes.find(n => n.id === id)
+  assert.ok(byId('/start').entry)
+  assert.ok(!byId('/kickout').entry, 'a page nothing leads to, with a link on, isn’t a start')
+  assert.ok(byId('/kickout').root, 'but the map still walks from it')
+})
+
+test('gives each version only the branches its answers allow, named with its own options', () => {
+  const { splitVersions } = require('../lib/follow')
+  const page = (id, states = [], extra = {}) => ({ id, type: 'page', url: id, title: id, thumb: 't', shot: 's', states, variants: [], listedStates: [], errorStates: [], warnings: [], ...extra })
+  const line = (to, rule) => ({ id: to + rule, from: '/agent-role', to, kind: 'submit', label: '', rule, texts: [] })
+  const ways = { links: [], forms: ['/agent-role'] }
+  const own = { agentRole: { question: '', options: { main: 'No', supp: 'Yes, I want to become their supporting agent instead' } } }
+  const graph = {
+    meta: { mainEntry: '/agent-role', stats: {} },
+    nodes: [
+      page('/agent-role', [
+        { kind: 'variant', listed: true, label: 'Already the main agent', query: '?existing=main', ways, renderedFields: own, thumb: 't', shot: 's1' }
+      ], { renderedFields: { agentRole: { question: '', options: { main: 'As their main agent', supp: 'As a supporting agent' } } } }),
+      page('/check'), page('/no-change')
+    ],
+    edges: [
+      line('/no-change', "existing = 'main' and agentRole = 'main'"),
+      line('/no-change', "existing = 'supp' and agentRole = 'supp'"),
+      line('/check', "agentRole = 'supp'"),
+      line('/check', "agentRole = 'main'")
+    ]
+  }
+  splitVersions(graph)
+  const from = id => graph.edges.filter(e => e.from === id && !e.version).map(e => e.to + ' ' + e.rule).sort()
+  assert.deepStrictEqual(from('/agent-role'), ["/check agentRole = 'main'", "/check agentRole = 'supp'"], 'a new client can’t get “no change”')
+  assert.deepStrictEqual(from('/agent-role?existing=main'), ["/check agentRole = 'supp'", "/no-change agentRole = 'main'"], 'only the main agent’s “no change”, which catches “No” before the line to check, named without the answer the version already has')
+  const version = graph.nodes.find(n => n.id === '/agent-role?existing=main')
+  assert.strictEqual(version.fields.agentRole.options.supp, 'Yes, I want to become their supporting agent instead')
+})
+
+test('names an option with more than one way on as “Option” – what decides it, in full', () => {
+  const page = (id, extra = {}) => ({ id, type: 'page', title: id, states: [], errorStates: [], variants: [], listedStates: [], warnings: [], notes: [], fields: {}, ...extra })
+  const graph = {
+    meta: {},
+    nodes: [
+      page('/role', {
+        fields: { agentRole: { question: 'How do you want to act?', options: { main: 'No', supp: 'Yes, I want to become their supporting agent instead of their main agent' } } },
+        listedStates: [{ text: 'Already the client’s main agent', query: '?existingAgentRole=main' }]
+      }),
+      page('/check'), page('/no-change')
+    ],
+    edges: [
+      { id: 'a', from: '/role', to: '/no-change', kind: 'submit', rule: "existingAgentRole = 'main' and agentRole = 'main'", texts: [] },
+      { id: 'b', from: '/role', to: '/check', kind: 'submit', rule: "agentRole = 'main'", texts: [] },
+      { id: 'c', from: '/role', to: '/check', kind: 'submit', rule: "existingAgentRole = 'main' and agentRole = 'supp'", texts: [] },
+      { id: 'd', from: '/role', to: '/check', kind: 'submit', rule: "signedUp = 'false'", texts: [] }
+    ]
+  }
+  nameBranches(graph)
+  const label = id => graph.edges.find(e => e.id === id).label
+  assert.strictEqual(label('a'), '“No” – Already the client’s main agent', 'the condition named as the index page names its address')
+  assert.strictEqual(label('b'), '“No”')
+  assert.ok(/^“Yes, I want to become their.*…” – Already the client’s main agent$/.test(label('c')), 'a long option is cut, what decides it never is: ' + label('c'))
+  assert.strictEqual(label('d'), 'signed up is false', 'a condition with no other name is put in words')
+
+  const { addLayouts } = require('../lib/layout')
+  return addLayouts({ meta: {}, nodes: graph.nodes.map(n => ({ ...n, fileLines: [n.id] })), edges: graph.edges.map(e => ({ ...e, label: 'A label that is a good deal longer than one line of a branch label' })) })
+    .then(g => {
+      assert.ok(g.edges[0].labelLines.length > 1, 'a long label wraps')
+      assert.ok(g.edges[0].labelLines.every(l => !l.endsWith('…')), 'and isn’t cut')
+    })
 })

@@ -243,7 +243,10 @@
         const g = make('g', { class: 'label' + (outside ? ' is-outside' : '') + leftOutClass(e), 'data-edge': e.id }, layers.labels)
         make('title', null, g, e.label + (e.code && e.code !== 'otherwise' ? '\n' + e.code : ''))
         make('rect', { x: geo.label.x, y: geo.label.y, width: geo.label.width, height: geo.label.height, rx: 4 }, g)
-        make('text', { x: geo.label.x + geo.label.width / 2, y: geo.label.y + 14, 'text-anchor': 'middle' }, g, e.shortLabel)
+        // In full, one line of the label at a time
+        const lines = e.labelLines && e.labelLines.length ? e.labelLines : [e.shortLabel]
+        const text = make('text', { x: geo.label.x + geo.label.width / 2, y: geo.label.y + 14, 'text-anchor': 'middle' }, g)
+        lines.forEach((line, i) => make('tspan', { x: geo.label.x + geo.label.width / 2, dy: i ? 15 : 0 }, text, line))
       }
     }
 
@@ -319,6 +322,7 @@
         make('text', { class: 'badge-text badge-text-' + badge.kind, x: x + badge.width / 2, y: badgeTop + 14, 'text-anchor': 'middle' }, g, badge.text)
         x += badge.width + 6
       })
+      if (!state.choosing && !state.exporting) drawLeftOutDot(n, g, card, n.badges.length ? badgeTop + 10 : top + 7 + Math.max(1, n.fileLines.length) * 13 - 13)
       if (box.cards) n.stateCards.forEach((sc, i) => drawStateCard(n, sc, box.cards[i], g))
       if (choosing()) drawCheck(g, n.id, n.title)
     } else if (n.type === 'decision') {
@@ -329,6 +333,37 @@
       n.lines.forEach((line, i) => make('text', { class: 'title', x: 12, y: 36 + i * 17 }, g, line))
     }
     return g
+  }
+
+  // What of a page "Choose screens to export" leaves out, in words, or '' if nothing
+  function leftOutOf (n) {
+    if (leftOut.has(n.id)) return 'Left out of the export'
+    const counts = { state: 0, error: 0 }
+    ;(n.states || []).forEach((st, i) => {
+      if (leftOut.has(n.id + '#' + (i + 1))) counts[st.kind === 'error' ? 'error' : 'state']++
+    })
+    const parts = Object.entries(counts).filter(([, count]) => count).map(([word, count]) => plural(count, word))
+    return parts.length ? parts.join(' and ') + ' left out of the export' : ''
+  }
+
+  // A dot at the right of the page's tags when the page, or some of its
+  // states and errors, are left out of the export: solid for the whole page,
+  // a ring for some of it. Not while choosing (the tick boxes show it) or in an export.
+  // With no tags it goes on the file name's last line, or in the card's
+  // top right corner when the file name is too long to leave room.
+  function drawLeftOutDot (n, g, card, y) {
+    const text = leftOutOf(n)
+    if (!text) return
+    let at = { cx: card.width - 20, cy: y, r: 5 }
+    if (!n.badges.length) {
+      const files = g.querySelectorAll('text.file')
+      const last = files[files.length - 1]
+      let width = last ? last.textContent.length * 6.4 : 0
+      try { if (last) width = last.getComputedTextLength() || width } catch (err) {}
+      if (14 + width > at.cx - 10) at = { cx: card.width - 9, cy: 8, r: 4 }
+    }
+    const dot = make('circle', { class: 'left-out-dot' + (leftOut.has(n.id) ? '' : ' left-out-dot--some'), ...at }, g)
+    make('title', null, dot, text)
   }
 
   // A tick box on the corner of a screen, state or error while choosing what to export
@@ -485,9 +520,18 @@
     })
   }
 
+  // As far out as zooming goes: 10%, or further for a map too big to fit at
+  // 10%, like one with every state card while choosing screens to export
+  function minZoom () {
+    const box = viewport.getBBox()
+    const rect = canvas.getBoundingClientRect()
+    if (!box.width || !rect.width) return 0.1
+    return Math.min(0.1, (visibleWidth() - 80) / box.width, (rect.height - 80) / box.height)
+  }
+
   function zoomAt (cx, cy, factor) {
     const v = state.view
-    const k = clamp(v.k * factor, 0.1, 3)
+    const k = clamp(v.k * factor, minZoom(), 3)
     v.x = cx - (cx - v.x) * (k / v.k)
     v.y = cy - (cy - v.y) * (k / v.k)
     v.k = k
@@ -504,7 +548,7 @@
     const rect = canvas.getBoundingClientRect()
     if (!box.width || !rect.width) return
     const pad = 40
-    const k = clamp(Math.min((visibleWidth() - pad * 2) / box.width, (rect.height - pad * 2) / box.height), 0.1, 1)
+    const k = clamp(Math.min((visibleWidth() - pad * 2) / box.width, (rect.height - pad * 2) / box.height), minZoom(), 1)
     state.view = {
       k,
       x: (visibleWidth() - box.width * k) / 2 - box.x * k,
@@ -529,7 +573,7 @@
     const y1 = Math.min(...boxes.map(b => b.y))
     const x2 = Math.max(...boxes.map(b => b.x + b.width))
     const y2 = Math.max(...boxes.map(b => b.y + b.height))
-    const k = clamp(Math.min((visibleWidth() - pad * 2) / (x2 - x1), (rect.height - pad * 2) / (y2 - y1)), 0.1, 1)
+    const k = clamp(Math.min((visibleWidth() - pad * 2) / (x2 - x1), (rect.height - pad * 2) / (y2 - y1)), minZoom(), 1)
     state.view = {
       k,
       x: visibleWidth() / 2 - ((x1 + x2) / 2) * k,
@@ -548,8 +592,11 @@
     const start = currentLayout().nodes[data.meta.mainEntry]
     if (fitAll >= 0.6 || !start) return fit()
     const k = 0.9
+    // The pages that can show anywhere are in a row above the start: show them too
+    const alone = data.nodes.filter(n => n.anywhere).map(n => currentLayout().nodes[n.id]).filter(Boolean)
+    const top = Math.min(start.y, ...alone.map(b => b.y))
     state.view = state.dir === 'DOWN'
-      ? { k, x: visibleWidth() / 2 - (start.x + start.width / 2) * k, y: pad - start.y * k }
+      ? { k, x: visibleWidth() / 2 - (start.x + start.width / 2) * k, y: pad - top * k }
       : { k, x: pad - start.x * k, y: rect.height / 2 - (start.y + start.height / 2) * k }
     applyView()
   }
@@ -1080,22 +1127,58 @@
   const chooseBar = $('#choose-bar')
   $('#export-choose').hidden = !window.journeyLayout
 
+  // The page selected, or else the one nearest the middle of the screen
+  function pageInView () {
+    const layout = currentLayout()
+    if (state.selected && layout.nodes[state.selected]) return state.selected
+    const rect = canvas.getBoundingClientRect()
+    const cx = (visibleWidth() / 2 - state.view.x) / state.view.k
+    const cy = (rect.height / 2 - state.view.y) / state.view.k
+    let best = null
+    let nearest = Infinity
+    for (const n of pages) {
+      const box = layout.nodes[n.id]
+      if (!box) continue
+      const distance = Math.hypot(box.x + box.width / 2 - cx, box.y + box.height / 2 - cy)
+      if (distance < nearest) { nearest = distance; best = n.id }
+    }
+    return best
+  }
+
+  // Switches between the map and choosing screens with the same page in the
+  // same place on screen, at the same zoom, so there's no need to find it again.
+  // The page's card is at the top left of its box, before its state cards.
+  function keepInView (id, change) {
+    const anchor = box => ({ x: box.x + (box.card || box).width / 2, y: box.y })
+    const before = id && currentLayout().nodes[id]
+    const at = before && { x: state.view.x + anchor(before).x * state.view.k, y: state.view.y + anchor(before).y * state.view.k }
+    change()
+    const after = id && currentLayout().nodes[id]
+    if (!at || !after) return initialView()
+    state.view.x = at.x - anchor(after).x * state.view.k
+    state.view.y = at.y - anchor(after).y * state.view.k
+    applyView()
+  }
+
   function startChoosing () {
     if (state.viewing) closeScreen()
+    const id = pageInView()
     clearSelection()
-    state.choosing = true
-    chooseBar.hidden = false
-    svg.classList.add('is-choosing')
-    draw()
-    initialView()
+    keepInView(id, () => {
+      state.choosing = true
+      chooseBar.hidden = false
+      svg.classList.add('is-choosing')
+      draw()
+    })
   }
 
   function stopChoosing () {
-    state.choosing = false
-    chooseBar.hidden = true
-    svg.classList.remove('is-choosing')
-    draw()
-    initialView()
+    keepInView(pageInView(), () => {
+      state.choosing = false
+      chooseBar.hidden = true
+      svg.classList.remove('is-choosing')
+      draw()
+    })
   }
 
   // Draws only the page again, so the map doesn't jump, then greys its lines
@@ -1140,6 +1223,7 @@
     const text = parts.length ? 'Leaving out ' + parts.join(', ').replace(/, ([^,]*)$/, ' and $1') : 'All screens'
     $('#choose-count').textContent = text
     $('#export-choose-note').textContent = text
+    $('#legend-left-out').hidden = !parts.length
   }
   updateChooseCount()
 
@@ -1169,6 +1253,7 @@
       [onMap.return && showsReturn, line('#912b88', 1.5, '5 3'), 'Change or return link'],
       [onMap.branch, box('#fff', '#f47738'), 'Branch, named by the answer'],
       [pagesWith('states'), tag('states', '2 states'), 'Versions of the screen, counting the page as it opens'],
+      [pagesWith('variants'), tag('variants', '2 variants'), 'Versions of a page that isn’t on the way through the journey, counting the page as it opens'],
       [pagesWith('errors'), tag('errors', '1 error'), 'Error screens'],
       [cards.some(c => !c.error), box('#f8f8f8', '#b1b4b6'), 'Another state of the page beside it'],
       [cards.some(c => c.error), box('#fdf4f2', '#d4351c'), 'Error screen of the page beside it'],

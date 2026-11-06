@@ -64,6 +64,10 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 .badge-errors { fill: #f6d7d2; } .badge-text-errors { fill: #942514; }
 .badge-states { fill: #e6dcf0; } .badge-text-states { fill: #4c2c68; }
 .badge-versions { fill: #dbe8f3; } .badge-text-versions { fill: #0b3c63; }
+.badge-variants { fill: #d5ece9; } .badge-text-variants { fill: #10403c; }
+.left-out-dot { fill: #505a5f; }
+.left-out-dot--some { fill: #fff; stroke: #505a5f; stroke-width: 1.5; }
+.badge-anywhere { fill: #fcd6c3; } .badge-text-anywhere { fill: #6e3619; }
 
 .edge { fill: none; stroke-width: 2; }
 .edge-submit, .edge-redirect { stroke: #505a5f; }
