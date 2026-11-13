@@ -3,4 +3,9 @@
 <h1>Resend this link</h1>
 <a href="requests">Your requests</a>
 {{ govukButton({ text: "Start new request", href: "#" }) }}
+<a href="#continues-in-manage-requests">See all your requests</a>
+<form action="resend" method="post">
+  {{ govukRadios({ name: "resendTo", items: [{ value: "same", text: "The same email address" }, { value: "new", text: "A new email address" }] }) }}
+  {{ govukButton({ text: "Continue" }) }}
+</form>
 {% endblock %}

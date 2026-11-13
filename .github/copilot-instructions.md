@@ -33,7 +33,7 @@ Write all text for designers in plain English, following the GOV.UK style: short
    - `lib/views.js` `parsePage()`: title, links, forms and form choices (`fields`) from a template, with regular expressions (templates mix HTML and Nunjucks too freely for a strict parser). Handles plain HTML and GOV.UK macros, `{% if %}` conditions, and visually hidden text (`fullText`).
    - `lib/routes.js` `parseRoutes()`: reads route files with acorn and works out each `res.redirect` / `res.render` and the conditions around it (`if`/`else`, early returns, `switch`, ternaries, `&&`), following constants, template strings, helper functions and variables copied from `req.session.data`.
    - A route with no page of its own (a form's address that redirects, or a link to an address that redirects) isn't drawn: the page is joined straight to where the route sends it (`decided` edges). Don't bring back "decision" blocks; designers found them confusing.
-   - Links to `#` (with words, not opening in a new tab: `newTab` in `views.js`) are ways out of the journey, since self-contained journey folders link to other journeys with `#`. Each becomes an `exit` node with `nowhere: true`, titled with the link's words (`leavesJourney()` in `graph.js`), copied next to each page like other outside pages. They have no "Open in prototype" link.
+   - Links to `#` (with words, not opening in a new tab: `newTab` in `views.js`) are ways out of the journey, since self-contained journey folders link to other journeys with `#`. Each becomes an `exit` node with `nowhere: true`, titled with the link's words (`leavesJourney()` in `graph.js`), copied next to each page like other outside pages. They have no "Open in prototype" link. A link or redirect to `#continues-in-<folder>` (`continuesIn()` in `graph.js`) marks where the journey carries on in another journey folder: an `exit` node with `nowhere: true` titled "Continues in <folder>", one per folder (`continuingNode()`), for links and for `res.redirect` targets in `connectHandlers()`.
    - Edges have a `kind`: `submit`, `redirect`, `link` or `change`. Change links and links that loop back are marked `return: true` and kept out of the layout.
    - A page marked `{# journey-map: anywhere #}` (`anywhere` in `views.js` `parsePage()`, read before comments are blanked) can show on any page: `buildGraph()` drops its lines and it's never a root; `layoutOne()` leaves it out of ELK and puts it in a row above the journey, moving everything else down. It gets an "Any page" badge.
    - Only `mainEntry` is `entry` (the "Start" badge and green outline). Other pages nothing leads to are `root`: the map walks from them (`orderBranches()`), but they aren't starts.
@@ -86,3 +86,21 @@ The README's Install section is the source of truth; keep it, `install.sh`, `ins
   Use `--no-screenshots` for a quick check of the map and labels (about a second).
 - Keep the README up to date when behaviour or options change. It's written for designers.
 - Must work on macOS and Windows: use `path.join`, don't rely on shell commands (see `findBrowser()` and `openInBrowser()`).
+
+## Commands
+
+```
+npm test                                                          # all tests
+node --test --test-name-pattern="loops back" test/journey-map.test.js   # one test, by name
+node bin/journey-map.js <journey folder> --no-screenshots --out <scratch file>.html   # quick check, about a second
+node bin/journey-map.js <journey folder> --json --out <scratch file>.json             # inspect nodes, edges, depth, mainEntry
+```
+
+No build or lint step.
+
+## Checking changes on the owner's prototypes
+
+- The owner's prototype is `~/Desktop/govuk-prototype`. Its journeys follow the new prototype architecture: each journey folder under `app/views/new-prototype-architecture/mapping/<version>/` is self-contained, with its own `_routes.js` and an `index.html` that lists the journey's pages in order, the start page first.
+- **Always pass `--out` to a scratch file when checking a change.** Without it the map overwrites the owner's own map in `$TMPDIR/journey-map/<journey>.html`, the one they review (a `--no-screenshots` check run once wiped their screenshots). Only write there when asked to make their map again.
+- The global `journey-map` command must be `npm link`ed to this repo. If the owner says a change doesn't show up, run `readlink -f $(which journey-map)` first: testing `install.sh` in another folder re-links it to that copy.
+- Changes only show in a newly made map: a map file is fixed when it's made.

@@ -631,7 +631,7 @@ test('keeps links to the same page with different answers in the address apart, 
 
 test('draws links to "#" as ways out of the journey, named with their words', () => {
   const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'leave') })
-  const leaving = graph.nodes.filter(n => n.nowhere)
+  const leaving = graph.nodes.filter(n => n.nowhere && !/^Continues in /.test(n.title))
   // Like other pages outside the journey, each page that links there gets its own copy
   assert.deepStrictEqual(leaving.map(n => n.title).sort(), ['Cancel your authorisation', 'Start new request', 'Start new request'])
   assert.ok(leaving.every(n => n.type === 'exit' && n.outside))
@@ -641,6 +641,20 @@ test('draws links to "#" as ways out of the journey, named with their words', ()
   // Links that open in a new tab, skip links and links with no words aren't ways out
   assert.ok(!graph.nodes.some(n => /guidance|sign your client up|skip/i.test(n.title)))
   assert.ok(graph.edges.some(e => e.from === '/leave/requests' && e.to === '/leave/resend'))
+})
+
+test('draws "#continues-in-<folder>" links and redirects as the journey to open next', () => {
+  const graph = buildGraph({ root, scopeDir: path.join(root, 'app', 'views', 'leave') })
+  const continuing = graph.nodes.filter(n => /^Continues in /.test(n.title || ''))
+  assert.deepStrictEqual(continuing.map(n => n.title).sort(), ['Continues in create-request', 'Continues in manage-requests'])
+  assert.ok(continuing.every(n => n.type === 'exit' && n.outside && n.nowhere))
+  const into = title => graph.edges.filter(e => continuing.some(n => n.id === e.to && n.title === title))
+  // A link, named with its words
+  assert.deepStrictEqual(into('Continues in manage-requests').map(e => e.from + ' ' + e.kind), ['/leave/resend link'])
+  // A redirect, on the answer that leads there
+  assert.deepStrictEqual(into('Continues in create-request').map(e => e.from + ' ' + e.kind + ' ' + e.rule), ["/leave/resend submit resendTo = 'new'"])
+  // Not also drawn as a way out named with the link's words
+  assert.ok(!graph.nodes.some(n => n.title === 'See all your requests'))
 })
 
 test('makes other versions of a page screens of their own, and keeps reveals, tabs and errors as states', () => {
